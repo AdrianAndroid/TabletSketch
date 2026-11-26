@@ -15,46 +15,68 @@
 ## 2. 总体架构
 
 ```text
-┌─────────────────────────────────────────────────────────────┐
-│                        TabletSketch.app                      │
-│                                                             │
-│  ┌──────────────┐    ┌──────────────┐    ┌───────────────┐  │
-│  │ HID Reader   │───▶│ PenInput     │───▶│ CanvasMapper  │  │
-│  │ (IOHIDManager)│    │ StateMachine │    │ 16:9 / crop   │  │
-│  └──────────────┘    └──────┬───────┘    └───────┬───────┘  │
-│                             │                     │          │
-│                      ┌──────▼─────────────────────▼───────┐  │
-│                      │        TabletInputBridge           │  │
-│                      │  虚拟笔光标 / 压力 / 倾斜 / 按键     │  │
-│                      └──────────────────┬─────────────────┘  │
-│                                         │                    │
-│  ┌──────────────────────────────────────▼─────────────────┐  │
-│  │              WKWebView + Excalidraw 0.18.1             │  │
-│  │  Resources/Sketch：离线 JS/CSS/字体/素材库              │  │
-│  └──────────────────────────────────────┬─────────────────┘  │
-│                                         │                    │
-│  ┌──────────────────────────────────────▼─────────────────┐  │
-│  │              Native UI Shell (AppKit/SwiftUI)          │  │
-│  │  顶部拖动条 / 右侧浮岛 / 下拉面板 / 笔尖气泡            │  │
-│  └──────────────────────────────────────┬─────────────────┘  │
-│                                         │                    │
-│  ┌──────────────────────────────────────▼─────────────────┐  │
-│  │              Document Store                            │  │
-│  │  ~/Pictures/TabletSketch/Sketches / 草稿 / 导出         │  │
-│  └────────────────────────────────────────────────────────┘  │
-└─────────────────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────┐
+│                   TabletSketch.app (Electron)                 │
+│                                                              │
+│  主进程 (Node)                                                │
+│  ├─ 窗口 / 菜单栏 / 文件存储 / 导出                           │
+│  └─ spawn tablet-sketch-hid ──▶ Swift 小工具                  │
+│                                    └─ IOHIDManager 只读       │
+│                                       Deco 640                │
+│                                       stdout: 逐行 JSON       │
+│                                                 │             │
+│                                          IPC（contextBridge）│
+│                                                 │             │
+│  渲染进程 (React)                                ▼             │
+│  ├─ 自绘 chrome：顶部条 / 右侧浮岛 / 径向菜单 / 样式气泡      │
+│  ├─ Excalidraw 0.18.1（fork，原生 UI 已拆掉）                 │
+│  └─ pushPenSample()：笔采样直连绘制链路，不经 DOM 事件        │
+│                                                              │
+│  文档：~/Pictures/TabletSketch/Sketches · 草稿 · 导出          │
+└──────────────────────────────────────────────────────────────┘
 ```
 
 分层原则：
 
-1. **HID Reader 只负责读字节**，不碰 UI、不碰画布。
+1. **HID 工具只负责读字节**，不碰 UI、不碰画布，输出标准化采样行。
 2. **PenInput 只负责状态机和标准化事件**，不直接生成笔迹。
 3. **CanvasMapper 只负责坐标变换**，不判断工具。
-4. **TabletInputBridge 负责把标准化事件送进 WebView**。
-5. **UI Shell 只负责布局和控件**，不直接读 HID。
-6. **Document Store 只负责文件**，不持有 WebView。
+4. **渲染进程的 chrome 只负责布局和控件**，不直接读 HID。
+5. **Excalidraw 只负责画布与图形模型**，不承担任何 chrome。
+6. **文档层只负责文件**，不持有渲染状态。
 
-这样换输入设备、换 WebView、换 UI 布局时，互相不牵连。
+换输入设备只改 HID 工具，换 UI 只改 chrome 层，互不牵连。
+
+### 2.1 架构决策：Electron + fork Excalidraw
+
+首个可运行版本采用 **Electron + fork Excalidraw 源码**，替代最初的"WKWebView + AppKit 自绘外壳"。
+
+**为什么换。** 原方案要让网页"看起来不像网页"，需要三个东西同时成立：CSS 隐藏清单一个不漏、一层全窗口透明视图拦截所有输入、右键菜单和文字编辑器单独改造。其中输入拦截层是最容易出 bug 的部分（事件按位置命中，但滚动和捏合要再转发回 WebView）。更根本的问题是，这套设计的每一步都在"减少破绽"，而不是"消除破绽"——每跟进一个 Excalidraw 小版本，就要重新排查一遍。
+
+换掉之后，"原生 vs 网页"这个矛盾本身消失了：整个 App 就是一个定制到很深程度的 Excalidraw，视觉统一是免费的。
+
+**为什么 fork 源码而不只是覆盖。** 官方 props 能接管一部分 UI，但有三处接管不了：属性面板没有关闭开关（只能 CSS 藏，`docked` 状态还在）、右键菜单结构固定、工具栏与浮岛的位置和交互冲突。而决定手感的那个改动——把 HID 采样直接喂进绘制链路——必须改 `App.tsx` 的指针处理，覆盖式做法只能合成 DOM 事件，多一跳、字段还得靠猜。
+
+**被否决的方案。**
+
+- *WKWebView + AppKit 自绘外壳*：视觉一致性靠模仿，事件仲裁层复杂，随上游版本漂移。留作备选，如果 Electron 的输入延迟实测不可接受再回退。
+- *只覆盖不 fork（npm 依赖 + patch-package）*：改动点会从 2 个涨到十几个文件，patch 每次升级都要重打，反而更脆。
+- *重写画布（自绘矢量引擎）*：图形模型、命中测试、绑定关系、文本排版、撤销栈、SVG/PNG 导出、素材库全部重做，工作量与收益不成比例。
+
+**接受的代价。**
+
+| 代价 | 说明 |
+|---|---|
+| 包体积 | 150–200 MB，原来只有 5 MB 资源 |
+| 冷启动 | 1–2 s，靠"窗口先出现、内容后填充"掩盖 |
+| 跟随上游 | 钉死 0.18.1，只 cherry-pick 安全修复 |
+| 系统集成 | 窗口材质、菜单栏等是模拟的，不如 AppKit 原生 |
+
+**fork 的纪律。** 三条硬规矩，缺一条这个 fork 半年后就会烂：
+
+1. 源码走 git submodule（`Web/vendor/excalidraw`），钉在 `v0.18.1`（commit `a2ec288`）。改动提交在 submodule 里，主仓库只记指针；同时用 `git format-patch` 导出到 `Docs/patches/` 做兜底。后期切到自己的 fork 仓库，只换 submodule 地址。
+2. 每处改动都打 `// TS-FORK:` 注释，说明为什么改。任何时候 `grep -rn "TS-FORK"` 就能列出全部改动点。
+3. 官方 props 能解决的绝不改源码，改源码是最后手段。`Docs/fork-changes.md` 维护给人看的改动清单。
 
 ## 3. HID 输入层
 
@@ -256,9 +278,61 @@ else:
 - 所有可点区域加 hit slop；笔尖点按允许 2–4pt 误差。
 - 二级面板最多两级，内部可滚动，不建第三级。
 
-### 5.3 径向菜单（P1，首版不做）
+### 5.3 径向菜单与样式气泡
 
-首版由笔侧键替代：侧键 1 切橡皮，侧键 2 呼出笔尖样式气泡。径向菜单留到 P1，届时以笔尖为中心、半径 80–120pt、8 扇区。
+侧键 1 在**笔光标位置**弹出径向菜单；侧键 2 直达样式气泡（不进菜单）。径向菜单里的「样式」槽是样式气泡的第二入口。三者的边界：**径向菜单管操作**（副本/删除/层级/对齐/分组/锁定），**样式气泡管样式**（颜色/线宽/填充/线型/边角/字号/对齐），**「更多」槽把原生右键菜单原样引出来**（剪切/粘贴/复制样式/层级/链接）。
+
+默认 4 槽、上限 8 槽、设置里可改。外径 `D = 180 + 15 × n`，4 槽 240pt、8 槽 300pt；中心 90pt 圆恒为关闭，扇区只占 `[45pt, D/2]` 环带。4 槽每槽 90°，8 槽每槽 45°，弧长都够笔点。
+
+```
+                 笔光标 = 圆心
+        ╭───────────────────────────────────╮
+        │            ╱╲        ╱╲           │
+        │         ╱ 样式 ╲   ╱ 副本 ╲        │   4 槽 · 直径 240
+        │        │        │ │        │       │
+        │   ╱────┤   ╭──╮  ├────╲           │   中心圆 = 取消
+        │  │ 更多 │  │⊘ │  │ 删除 │          │
+        │   ╲────┤   ╰──╯  ├────╱           │
+        │        │        │ │        │       │
+        │         ╲      ╱   ╲      ╱        │
+        │            ╲╱        ╲╱           │
+        ╰───────────────────────────────────╯
+
+        8 槽 · 直径 300：补入 层级 / 对齐 / 分组 / 锁定
+```
+
+交互分三步，每步都只用一个动作：
+
+| 步骤 | 用户的动作 | 系统行为 |
+|---|---|---|
+| 开 | 按侧键 1 | 以笔光标为圆心弹出，不改选中、不动视口 |
+| 瞄 | 笔悬浮移动（不接触板面） | 光标所在扇区实时高亮 |
+| 定 | 笔尖接触板面 | 执行该扇区，菜单关闭 |
+
+**独占输入态**是这个设计的关键约束。菜单打开期间笔尖 down/move/up 全部由原生层消费，一个 pointer 事件都不往 Web 发——否则「点菜单」会同时变成「画一笔」。命中测试走极坐标：先算半径分环带/中心圆，再由极角定扇区，边界带 ±2° 吸附防抖。这不违反 §3.7：此时没有任何输入源在写画布。
+
+**「样式」是二级入口**，不是动作。点中后菜单从外向内收缩成 90pt 残圆停靠在光标侧方，旁边展开样式气泡；点残圆、气泡外空白或再按侧键 1 一起关闭。这样「选中图元 → 侧键 → 样式 → 调色」是四个动作，比走原生右键菜单（上游菜单里根本没有颜色项）少且不断链。
+
+**两套上下文**：有选中时 4 槽是 样式/副本/删除/更多（增至 8 槽补 层级/对齐/分组/锁定）；空白时 4 槽换成 粘贴/全选/清空/更多（补 撤销/缩放复位/插入图片/背景切换）。空白上下文下不出现「样式」槽。
+
+样式气泡按上下文换内容、尺寸恒定 320×140、3 行档位按钮：
+
+```
+        ● 笔尖
+   ╭─────────────────────────────────╮
+   │ 颜色  ● ● ● ● ● ●              │   ← 笔 / 橡皮
+   │ 线宽  细  中  粗  特粗          │
+   │ 透明  100  75  50  25           │
+   ╰─────────────────────────────────╯
+
+   ╭─────────────────────────────────╮
+   │ 描边  ● ● ● ● ● ●              │   ← 矩形 / 椭圆 / 菱形
+   │ 填充  ⊘ ● ● ● ● ● ●            │
+   │ 线宽  细  中  粗  特粗          │
+   ╰─────────────────────────────────╯
+```
+
+为什么不用滑杆：笔点滑杆要命中 28pt 的滑块，误差大；档位按钮可以整块点中。为什么不做翻页：笔操作翻页手感差，且第二页的内容在一屏 3 行里本来就能按上下文放得下。
 
 ### 5.4 模式
 
@@ -331,58 +405,60 @@ else:
 └──────────────┴───────────────────────────────┘
 ```
 
-## 6. WebView 与 Bridge
+## 6. 渲染层与 Bridge
 
-### 6.1 资源加载
+### 6.1 加载
 
-- 复用 `Resources/Sketch/index.html` 与 `assets/`。
-- 使用自定义 scheme（例如 `tabletsketch://local/`）加载，避免 `file://` 的目录与模块限制。
-- CSP 保持 `default-src 'self' data: blob:`，不请求外部 CDN。
-- 离线资源路径要做路径穿越保护。
+- Electron 用 `loadFile` 加载 `Resources/Sketch/index.html`，Vite 的 `base` 必须是 `./`（`file://` 下绝对路径会 404）。
+- 窗口 `show: false` + `ready-to-show` 才显示，避免白屏过程。
+- 不起本地 HTTP 服务，减少一层可攻击面；CSP 保持 `default-src 'self' data: blob:`，不请求外部 CDN。
+- `Resources/Sketch` 是构建产物，只由 `npm run build` 生成，不手改。
 
-### 6.2 Bridge 接口
-
-建议沿用主项目 `deckSketch` 的模式，但使用独立名字 `tabletSketch`：
+### 6.2 进程间接口
 
 ```text
-JS → Native:
-  ready
-  change(scene)
-  copyRequested
-  copyJSONRequested
-  saveRequested
-  newRequested
-  boardSwitchRequested
-  boardCreateRequested
-  boardRenameRequested
-  boardDeleteRequested
-  penDebug(report)
+主进程 → 渲染进程
+  pen:samples   [[x, y, pressure, phase], ...]   笔采样，phase 1/2/3 = 起/移/抬
+  pen:selftest  触发自测笔迹
+  menu:settings 菜单栏点「设置…」
 
-Native → JS:
-  initBoards(activeId, boardsJson, scene)
-  activateBoard(...)
-  updateBoards(...)
-  loadScene(json)
-  getScene()
-  getAIJSON()
-  exportPNG(scale, padding, background)
-  showToast(text, kind)
-  setPenPressure(value)
+渲染进程 → 主进程
+  scene:change  场景有改动（用于脏标记与自动保存）
+  file:save / file:open / file:export
+  board:*       多画布的增删改查
+  app:open-settings
 ```
 
-- 笔事件高频，不走 `WKScriptMessageHandler` 的 JSON 往返；优先用 `evaluateJavaScript` 批量注入或直接操作 WebView 的 pointer 事件。
-- `callAsyncJavaScript` 返回值不可靠时，改用 `evaluateJavaScript` 读字符串；异步导出用 Promise + 轮询结果。
-- 所有 JS 调用失败必须有回退：不崩溃、不丢当前场景。
+渲染进程内部的 chrome ↔ 画布通道（不经 IPC）：
 
-### 6.3 压感注入
+```text
+setTool(name) / getTool() / hasSelection()
+undo() / redo()
+zoomToFit() / setZoom(v) / getZoom()
+setBackground(plain|dark|dots|grid) / clearCanvas() / elementCount()
+setStyle(patch) / getContext()
+insertLibraryItem(id)
+openRadialMenu(x, y) / openStyleBubble(anchor)
+setTabletChrome(on)
+```
 
-按优先级：
+### 6.3 笔采样注入
 
-1. 如果 Excalidraw 的 freehand 接受 `pressure` 数组/`PointerEvent.pressure`，直接注入。
-2. 如果不接受，包一层自定义 brush，用 `perfect-freehand` 或自有采样生成 `freedraw` 元素。
-3. 如果都不行，保留原 freehand，压感只影响线宽预览，不阻塞其他功能。
+Electron 里有两个选择，首版先用 A，A 通了再评估 B。
 
-首版必须先做 PoC 验证 1 或 2，再铺完整 UI。
+**A · 合成 PointerEvent（不改源码即可用）**
+
+preload 拿到 IPC 采样后，直接在 canvas 上派发 `pointerdown/move/up`，`pointerType: "pen"`、`pointerId` 固定。
+
+一个必须避开的坑：Excalidraw 把 `event.pressure === 0.5` 当作"设备没有压感、改用速度模拟"的标记（`App.tsx` 里 `simulatePressure`），一旦起笔那帧正好是 0.5，整条线的压感会被丢弃。所以注入前要把压力值钳开 0.5（`0.5 → 0.5001`）。
+
+**B · 直连绘制链路（fork 后做）**
+
+在 `App.tsx` 里加 `pushPenSample(sample)`，把采样直接喂进 `handleCanvasPointerDown` 之后的处理函数，跳过 DOM 事件层。收益是少一跳、压感与倾斜字段完全可控、笔的三态由我们自己判断。这是 fork 的主要理由之一。
+
+**验证顺序**：先做 A 的 PoC，确认能画出带压感的线；再做 B，对比两条线在同一笔输入下的形态与延迟。B 不达标就退回 A，功能不受阻。
+
+**兜底**：如果两条路都拿不到真实压感，用 `perfect-freehand` 包一层自定义 brush 生成 `freedraw` 元素，压感只影响线宽。
 
 ## 7. 文档与存储
 
@@ -459,12 +535,14 @@ Native → JS:
 
 ### P0 · 可运行 PoC
 
-- 独立窗口 + WKWebView + `Resources/Sketch`
-- 只读 C 通道 + 12 字节解析
-- 三态识别 + 压感线宽
+- Electron 外壳 + `Resources/Sketch` + fork 后的 Excalidraw
+- 只读 C 通道 + 12 字节解析（Swift 小工具，stdout 逐行 JSON）
+- 三态识别 + 压感线宽（先走合成 PointerEvent，再切直连）
 - 16:9 画布 + 越界丢弃
-- 笔侧键 1 橡皮、侧键 2 笔尖样式气泡
+- 右侧浮岛 + 顶部拖动条 + 三大下拉 + 素材面板
+- 笔侧键 1 径向菜单、侧键 2 笔尖样式气泡
 - 8 板载键默认映射
+- 设置小窗（660×700，左侧分组 + 右侧分节）
 - `.excalidraw` 保存/恢复
 
 ### P1 · 好用
@@ -480,12 +558,15 @@ Native → JS:
 - 4:3 / 1:1 画布
 - 模板
 - 更多按键映射
-- 可选合并回主项目
+- 笔采样直连绘制链路（若 P0 走的是合成 PointerEvent）
+- 切换到自己 fork 的 Excalidraw 仓库做 subscript，理顺升级流程
 
 ## 11. 已知限制
 
-- Excalidraw 是 React/Web 布局，深度改 UI 成本高；优先 CSS + 外层覆盖层，不动内核。
-- WKWebView 对压感/倾斜的原生支持需要实测；不能假设 PointerEvent 一定带 pressure。
+- Excalidraw 钉死在 0.18.1，不再跟随上游；安全修复靠手动 cherry-pick，存在滞后风险。
+- Electron 包体积 150–200 MB，冷启动 1–2 s，这是换架构的既定代价。
+- 合成 PointerEvent 时，`pressure === 0.5` 会被 Excalidraw 判定为"无压感设备"而丢弃真实压力，注入前必须钳开。
+- 文字内联编辑器仍是网页输入框，只能靠样式对齐，无法原生化。
 - 只读 HID 可能受输入监控权限影响；权限被拒时只能回退鼠标。
 - 8 个板载键需要 vendor 模式初始化；初始化失败时按键不可用。
 - 画布锁定在窗口失焦时可能把笔点送到背后 App；必须自动解除。

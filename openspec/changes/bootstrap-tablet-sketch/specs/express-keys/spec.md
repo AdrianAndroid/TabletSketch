@@ -46,8 +46,10 @@ TabletSketch SHALL 支持 Deco 640 的 8 个板载虚拟快捷键和 2 个笔侧
 #### Scenario: 笔侧键默认表
 
 - **WHEN** 首次运行
-- **THEN** 笔侧键 1 MUST 切换橡皮
-- **AND** 笔侧键 2 MUST 呼出笔尖样式气泡
+- **THEN** 笔侧键 1 MUST 在笔光标位置弹出径向菜单（默认 4 槽）
+- **AND** 笔侧键 2 MUST 呼出笔尖样式气泡（不经过径向菜单的直达路径）
+- **AND** 橡皮 MUST 由浮岛「擦」格或板载键 5 承担，MUST NOT 再占用侧键
+- **AND** Excalidraw 原生右键菜单 MUST 降级为径向菜单里的「更多」槽，MUST NOT 再直接挂在侧键上
 
 #### Scenario: 恢复默认
 

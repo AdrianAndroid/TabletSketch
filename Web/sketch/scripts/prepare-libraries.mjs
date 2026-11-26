@@ -54,19 +54,38 @@ for (const entry of catalog.libraries) {
   console.log(`${entry.label.padEnd(18)} ${String(items.length).padStart(3)} 组 / ${libraries.at(-1).elementCount} 个元素`);
 }
 
+// 沿用上一次的 generatedAt：素材内容没变时输出字节完全一致，
+// 避免每次 build 都产生一份 1.8 MB 的纯时间戳 diff。
+const outputPath = join(root, "src/libraries.generated.json");
+let previousGeneratedAt = null;
+try {
+  const previous = JSON.parse(await readFile(outputPath, "utf8"));
+  previousGeneratedAt = previous.generatedAt ?? null;
+} catch {
+  previousGeneratedAt = null;
+}
+
 const output = {
   version: 1,
   source: catalog.source,
   license: catalog.license,
-  generatedAt: new Date().toISOString(),
+  generatedAt: previousGeneratedAt ?? new Date().toISOString(),
   totalItems,
   totalElements,
   libraries
 };
 
-await writeFile(
-  join(root, "src/libraries.generated.json"),
-  `${JSON.stringify(output)}\n`,
-  "utf8"
-);
-console.log(`\n写入 src/libraries.generated.json：${libraries.length} 个素材库 / ${totalItems} 组 / ${totalElements} 个元素`);
+const serialized = `${JSON.stringify(output)}\n`;
+let unchanged = false;
+try {
+  unchanged = (await readFile(outputPath, "utf8")) === serialized;
+} catch {
+  unchanged = false;
+}
+
+if (unchanged) {
+  console.log(`\nsrc/libraries.generated.json 未变化，跳过写入（${libraries.length} 个素材库 / ${totalItems} 组）`);
+} else {
+  await writeFile(outputPath, serialized, "utf8");
+  console.log(`\n写入 src/libraries.generated.json：${libraries.length} 个素材库 / ${totalItems} 组 / ${totalElements} 个元素`);
+}

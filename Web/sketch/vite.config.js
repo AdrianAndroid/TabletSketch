@@ -4,12 +4,13 @@ import { fileURLToPath } from "node:url";
 
 const mermaidStub = fileURLToPath(new URL("./src/mermaid-stub.js", import.meta.url));
 const outDir = fileURLToPath(
-  new URL("../../Sources/MacAppControlDeck/Modules/Sketch/Resources/Sketch", import.meta.url)
+  new URL("../../Resources/Sketch", import.meta.url)
 );
 
 export default defineConfig({
   plugins: [react()],
-  base: "/",
+  // Electron 用 file:// 加载产物，必须是相对路径。
+  base: "./",
   resolve: {
     alias: {
       // UI 草图不需要 Mermaid，去掉它可省约 3.6 MB。

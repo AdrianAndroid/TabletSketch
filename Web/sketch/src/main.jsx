@@ -10,6 +10,7 @@ import {
 import "@excalidraw/excalidraw/index.css";
 import "./sketch.css";
 import libraryBundle from "./libraries.generated.json";
+import { installTabletSketch } from "./tablet-sketch.js";
 
 const MESSAGE_HANDLER = "deckSketch";
 
@@ -904,6 +905,7 @@ function App() {
         }}
         excalidrawAPI={(api) => {
           excalidrawAPI = api;
+          installTabletSketch(api);
           if (pendingScene) loadScene(pendingScene);
           setTimeout(() => {
             seedLibraries();

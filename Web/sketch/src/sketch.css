@@ -774,3 +774,49 @@ body.deck-board-menu-open .App-menu_top__left > *:nth-child(n + 2) {
   font-size: 10px;
   text-align: center;
 }
+
+/* ============================================================
+   手写板模式：窗口即板面，所有 chrome 由原生层自绘。
+   body.tablet-mode 由原生层通过 tabletSketch.setTabletChrome(true) 打开。
+   ============================================================ */
+
+body.tablet-mode .App-menu_top,
+body.tablet-mode .App-menu__left,
+body.tablet-mode .App-menu_bottom,
+body.tablet-mode .App-toolbar,
+body.tablet-mode .FixedSideContainer,
+body.tablet-mode .dropdown-menu-button,
+body.tablet-mode .undo-redo-buttons,
+body.tablet-mode .zoom-actions,
+body.tablet-mode .help-icon,
+body.tablet-mode .App-bottom-bar,
+body.tablet-mode .layer-ui__wrapper__top-right,
+body.tablet-mode .deck-actions,
+body.tablet-mode .deck-switcher,
+body.tablet-mode .deck-toast,
+body.tablet-mode .pen-mode-toolbar,
+body.tablet-mode .HintViewer {
+  display: none !important;
+}
+
+/* 原生 UI 层整体不接收指针，避免盖住画布 */
+body.tablet-mode .layer-ui__wrapper {
+  pointer-events: none !important;
+}
+
+/* 右键菜单必须还能点 */
+body.tablet-mode .layer-ui__wrapper .context-menu,
+body.tablet-mode .context-menu {
+  pointer-events: auto !important;
+}
+
+/* 光标交给原生层的虚拟笔光标 */
+body.tablet-mode canvas.excalidraw__canvas {
+  cursor: none !important;
+}
+
+/* 背景网格 / 点阵 */
+body.tablet-mode.ts-dots .excalidraw__canvas.static,
+body.tablet-mode.ts-grid .excalidraw__canvas.static {
+  background-color: transparent;
+}

@@ -1,0 +1,440 @@
+// tablet-sketch.js — 手写板模式的 Web 侧桥与笔事件注入。
+//
+// 原生层通过 window.tabletSketch.* 调用；这里只做三件事：
+//   1. 把浮岛/顶部条的自绘 UI 变成对 Excalidraw 公开 API 的调用
+//   2. 把原生采集到的笔采样点合成为 PointerEvent 注入画布
+//   3. 补两个上游不会替我们处理的坑（setPointerCapture / getCoalescedEvents）
+//
+// 不修改 Excalidraw 包本身。
+
+import { restoreElements } from "@excalidraw/excalidraw";
+
+const NATIVE_HANDLER = "tabletSketch";
+
+/** 合成指针的固定 id，用来在 patch 里识别"这是我们自己造的"。 */
+const INJECTED_POINTER_ID = 8801;
+
+const TOOL_MAP = {
+  pen: "freedraw",
+  eraser: "eraser",
+  hand: "hand",
+  select: "selection",
+  rectangle: "rectangle",
+  ellipse: "ellipse",
+  arrow: "arrow",
+  line: "line",
+  text: "text",
+  diamond: "diamond",
+  image: "image"
+};
+
+let api = null;
+let drawing = false;
+
+function post(type, payload = {}) {
+  try {
+    window.webkit?.messageHandlers?.[NATIVE_HANDLER]?.postMessage({ type, ...payload });
+  } catch (error) {
+    console.warn("tablet bridge unavailable", error);
+  }
+}
+
+function canvasEl() {
+  return (
+    document.querySelector("canvas.excalidraw__canvas.interactive") ||
+    document.querySelector("canvas.excalidraw__canvas")
+  );
+}
+
+/** 上游会对自造 pointerId 调 setPointerCapture，Safari 抛 InvalidPointerId。 */
+function patchPointerCapture() {
+  const proto = Element.prototype;
+  const originalSet = proto.setPointerCapture;
+  const originalRelease = proto.releasePointerCapture;
+  const originalHas = proto.hasPointerCapture;
+
+  proto.setPointerCapture = function (id) {
+    if (id === INJECTED_POINTER_ID) return;
+    try {
+      return originalSet.call(this, id);
+    } catch (error) {
+      return undefined;
+    }
+  };
+  proto.releasePointerCapture = function (id) {
+    if (id === INJECTED_POINTER_ID) return;
+    try {
+      return originalRelease.call(this, id);
+    } catch (error) {
+      return undefined;
+    }
+  };
+  proto.hasPointerCapture = function (id) {
+    if (id === INJECTED_POINTER_ID) return false;
+    try {
+      return originalHas.call(this, id);
+    } catch (error) {
+      return false;
+    }
+  };
+
+  if (!PointerEvent.prototype.getCoalescedEvents) {
+    PointerEvent.prototype.getCoalescedEvents = function () {
+      return [this];
+    };
+  }
+}
+
+/**
+ * Excalidraw 把 `event.pressure === 0.5` 当作"设备没有压感、改用速度模拟"的标记
+ * （components/App.tsx 的 simulatePressure）。真实压感正好落在 0.5 时整条线的
+ * 压力数据会被丢掉，所以必须钳开。
+ */
+function clampPressure(value) {
+  let p = Number.isFinite(value) ? value : 0;
+  p = Math.max(0, Math.min(1, p));
+  return p === 0.5 ? 0.5001 : p;
+}
+
+function makePointerEvent(type, x, y, pressure) {
+  const isUp = type === "pointerup" || type === "pointercancel";
+  return new PointerEvent(type, {
+    bubbles: true,
+    cancelable: true,
+    composed: true,
+    view: window,
+    pointerId: INJECTED_POINTER_ID,
+    pointerType: "pen",
+    isPrimary: true,
+    width: 1,
+    height: 1,
+    pressure: isUp ? 0 : clampPressure(pressure),
+    tangentialPressure: 0,
+    tiltX: 0,
+    tiltY: 0,
+    twist: 0,
+    button: type === "pointermove" ? -1 : 0,
+    buttons: isUp ? 0 : 1,
+    clientX: x,
+    clientY: y,
+    screenX: x,
+    screenY: y
+  });
+}
+
+/** 把一帧的笔采样点推成 pointerdown / pointermove / pointerup。 */
+function pushSamples(samples) {
+  const target = canvasEl();
+  if (!target) return;
+
+  for (const sample of samples) {
+    const [x, y, pressure, phase] = sample;
+    if (phase === 1) {
+      if (drawing) continue;
+      drawing = true;
+      target.dispatchEvent(makePointerEvent("pointerdown", x, y, pressure || 0.5));
+    } else if (phase === 2) {
+      if (!drawing) continue;
+      target.dispatchEvent(makePointerEvent("pointermove", x, y, pressure || 0.5));
+    } else if (phase === 3) {
+      if (!drawing) continue;
+      drawing = false;
+      target.dispatchEvent(makePointerEvent("pointermove", x, y, pressure || 0.5));
+      target.dispatchEvent(makePointerEvent("pointerup", x, y, 0));
+    }
+  }
+}
+
+function sceneCenter() {
+  const state = api.getAppState();
+  const zoom = state.zoom?.value || 1;
+  return {
+    x: (state.width / 2 - state.scrollX) / zoom,
+    y: (state.height / 2 - state.scrollY) / zoom,
+    zoom
+  };
+}
+
+function stylePatchToAppState(patch) {
+  const next = {};
+  if (patch.strokeColor !== undefined) next.currentItemStrokeColor = patch.strokeColor;
+  if (patch.backgroundColor !== undefined) next.currentItemBackgroundColor = patch.backgroundColor;
+  if (patch.strokeWidth !== undefined) next.currentItemStrokeWidth = patch.strokeWidth;
+  if (patch.strokeStyle !== undefined) next.currentItemStrokeStyle = patch.strokeStyle;
+  if (patch.fillStyle !== undefined) next.currentItemFillStyle = patch.fillStyle;
+  if (patch.opacity !== undefined) next.currentItemOpacity = patch.opacity;
+  if (patch.roughness !== undefined) next.currentItemRoughness = patch.roughness;
+  if (patch.fontSize !== undefined) next.currentItemFontSize = patch.fontSize;
+  if (patch.textAlign !== undefined) next.currentItemTextAlign = patch.textAlign;
+  return next;
+}
+
+function stylePatchToElements(elements, selectedIds, patch) {
+  return elements.map((element) => {
+    if (!selectedIds[element.id]) return element;
+    const next = { ...element };
+    if (patch.strokeColor !== undefined) next.strokeColor = patch.strokeColor;
+    if (patch.backgroundColor !== undefined) next.backgroundColor = patch.backgroundColor;
+    if (patch.strokeWidth !== undefined) next.strokeWidth = patch.strokeWidth;
+    if (patch.strokeStyle !== undefined) next.strokeStyle = patch.strokeStyle;
+    if (patch.fillStyle !== undefined) next.fillStyle = patch.fillStyle;
+    if (patch.opacity !== undefined) next.opacity = patch.opacity;
+    if (patch.roughness !== undefined) next.roughness = patch.roughness;
+    if (patch.fontSize !== undefined && next.type === "text") next.fontSize = patch.fontSize;
+    if (patch.textAlign !== undefined && next.type === "text") next.textAlign = patch.textAlign;
+    if (patch.roundness !== undefined) {
+      next.roundness = patch.roundness === "sharp" ? null : { type: 3 };
+    }
+    return next;
+  });
+}
+
+async function resolveLibraryItems() {
+  const raw = api.getAppState().libraryItems;
+  if (raw && typeof raw.then === "function") return (await raw) || [];
+  return raw || [];
+}
+
+function insertLibraryItem(itemId) {
+  const state = api.getAppState();
+  const center = sceneCenter();
+  return resolveLibraryItems().then((items) => {
+    const item = (items || []).find((entry) => entry.id === itemId);
+    if (!item || !item.elements?.length) return false;
+
+    const source = restoreElements(item.elements, null);
+    const minX = Math.min(...source.map((element) => element.x));
+    const minY = Math.min(...source.map((element) => element.y));
+    const maxX = Math.max(...source.map((element) => element.x + (element.width || 0)));
+    const maxY = Math.max(...source.map((element) => element.y + (element.height || 0)));
+    const dx = center.x - (minX + maxX) / 2;
+    const dy = center.y - (minY + maxY) / 2;
+
+    const placed = source.map((element) => ({
+      ...element,
+      id: `${element.id}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`,
+      x: element.x + dx,
+      y: element.y + dy
+    }));
+
+    api.updateScene({
+      elements: [...api.getSceneElements(), ...placed],
+      appState: {
+        selectedElementIds: Object.fromEntries(placed.map((element) => [element.id, true])),
+        activeTool: { type: "selection" }
+      },
+      captureUpdate: "IMMEDIATELY"
+    });
+    return true;
+  });
+}
+
+function installTabletSketch(excalidrawApi) {
+  api = excalidrawApi;
+  patchPointerCapture();
+
+  const bridge = {
+    // ---- 工具 ----
+    setTool(name) {
+      const type = TOOL_MAP[name];
+      if (!type) return false;
+      api.setActiveTool({ type });
+      return true;
+    },
+    getTool() {
+      return api.getAppState().activeTool?.type || "selection";
+    },
+    hasSelection() {
+      const selected = api.getAppState().selectedElementIds || {};
+      return Object.keys(selected).some((id) => selected[id]);
+    },
+
+    // ---- 历史 ----
+    undo() {
+      api.history.undo();
+      return true;
+    },
+    redo() {
+      api.history.redo();
+      return true;
+    },
+
+    // ---- 视图 ----
+    zoomToFit() {
+      api.scrollToContent(api.getSceneElements(), { fitToContent: true, animate: false });
+      return true;
+    },
+    setZoom(value) {
+      api.updateScene({ appState: { zoom: { value } } });
+      return true;
+    },
+    getZoom() {
+      return api.getAppState().zoom?.value || 1;
+    },
+
+    // ---- 画布 ----
+    setBackground(kind) {
+      const table = {
+        plain: "#ffffff",
+        dark: "#121212",
+        dots: "#ffffff",
+        grid: "#ffffff"
+      };
+      const color = table[kind] || "#ffffff";
+      document.body.classList.toggle("ts-dark", kind === "dark");
+      document.body.classList.toggle("ts-dots", kind === "dots");
+      document.body.classList.toggle("ts-grid", kind === "grid");
+      api.updateScene({ appState: { viewBackgroundColor: color } });
+      return true;
+    },
+    clearCanvas() {
+      api.updateScene({
+        elements: [],
+        appState: { selectedElementIds: {}, editingElement: null },
+        captureUpdate: "IMMEDIATELY"
+      });
+      return true;
+    },
+    elementCount() {
+      return api.getSceneElements().filter((element) => !element.isDeleted).length;
+    },
+
+    // ---- 样式 ----
+    setStyle(patch) {
+      const state = api.getAppState();
+      const selected = state.selectedElementIds || {};
+      const hasSelection = Object.keys(selected).some((id) => selected[id]);
+      const appStatePatch = stylePatchToAppState(patch);
+      if (hasSelection) {
+        const elements = stylePatchToElements(
+          api.getSceneElements(),
+          selected,
+          patch
+        );
+        api.updateScene({
+          elements,
+          appState: appStatePatch,
+          captureUpdate: "IMMEDIATELY"
+        });
+      } else {
+        api.updateScene({ appState: appStatePatch });
+      }
+      return true;
+    },
+    getContext() {
+      const state = api.getAppState();
+      const selectedIds = state.selectedElementIds || {};
+      const selected = api
+        .getSceneElements()
+        .filter((element) => selectedIds[element.id] && !element.isDeleted);
+      const kinds = [...new Set(selected.map((element) => element.type))];
+      const first = selected[0] || null;
+      return {
+        tool: state.activeTool?.type || "selection",
+        selectedTypes: kinds,
+        style: {
+          strokeColor: first?.strokeColor ?? state.currentItemStrokeColor,
+          backgroundColor: first?.backgroundColor ?? state.currentItemBackgroundColor,
+          strokeWidth: first?.strokeWidth ?? state.currentItemStrokeWidth,
+          strokeStyle: first?.strokeStyle ?? state.currentItemStrokeStyle,
+          fillStyle: first?.fillStyle ?? state.currentItemFillStyle,
+          opacity: first?.opacity ?? state.currentItemOpacity,
+          roughness: first?.roughness ?? state.currentItemRoughness,
+          fontSize: first?.fontSize ?? state.currentItemFontSize,
+          textAlign: first?.textAlign ?? state.currentItemTextAlign,
+          roundness: first ? (first.roundness ? "round" : "sharp") : "round"
+        }
+      };
+    },
+
+    // ---- 素材 ----
+    insertLibraryItem(itemId) {
+      return insertLibraryItem(itemId);
+    },
+
+    // ---- 事件 ----
+    /** 在笔尖位置合成右键事件，交给 Excalidraw 原生菜单。 */
+    contextMenu(x, y) {
+      const target = canvasEl();
+      if (!target) return false;
+      const event = new MouseEvent("contextmenu", {
+        bubbles: true,
+        cancelable: true,
+        view: window,
+        button: 2,
+        buttons: 2,
+        clientX: x,
+        clientY: y
+      });
+      target.dispatchEvent(event);
+      return true;
+    },
+
+    /** 原生每帧批量推来的笔采样：[[x, y, pressure, phase], ...] */
+    pushSamples,
+
+    // ---- 外观 ----
+    setTabletChrome(on) {
+      document.body.classList.toggle("tablet-mode", !!on);
+      return true;
+    },
+    ready: true,
+    version: "1"
+  };
+
+  window.tabletSketch = bridge;
+
+  // contextIsolation 下 preload 看不到 window 上的属性，只能用 DOM 事件跨世界传话。
+  // 笔采样、自测、chrome 开关都从这三个事件进。
+  document.addEventListener("ts:pen", (event) => {
+    const samples = event.detail;
+    if (Array.isArray(samples)) pushSamples(samples);
+  });
+  document.addEventListener("ts:selftest", () => runSelfTest());
+  document.addEventListener("ts:chrome", (event) => {
+    bridge.setTabletChrome(event.detail !== false);
+  });
+
+  document.dispatchEvent(new CustomEvent("ts:ready"));
+  post("tabletReady");
+  return bridge;
+}
+
+/** 通过 preload 把日志送到主进程终端，方便无 DevTools 时排错。 */
+function log(message) {
+  document.dispatchEvent(new CustomEvent("ts:log", { detail: String(message) }));
+}
+
+/** 自测：切到手写笔，注入一条压力渐变的横线。 */
+async function runSelfTest() {
+  const target = canvasEl();
+  if (!target) {
+    log("自测失败：找不到画布");
+    return;
+  }
+  log(`自测开始，画布 ${Math.round(target.clientWidth)}×${Math.round(target.clientHeight)}`);
+
+  api.setActiveTool({ type: "freedraw" });
+  await new Promise((resolve) => setTimeout(resolve, 150));
+
+  const rect = target.getBoundingClientRect();
+  const y = rect.top + rect.height / 2;
+  const x0 = rect.left + rect.width * 0.28;
+  const span = rect.width * 0.44;
+  const steps = 80;
+
+  target.dispatchEvent(makePointerEvent("pointerdown", x0, y, 0.12));
+  for (let i = 1; i <= steps; i += 1) {
+    const t = i / steps;
+    const x = x0 + span * t;
+    const pressure = 0.12 + Math.sin(t * Math.PI) * 0.83;
+    target.dispatchEvent(makePointerEvent("pointermove", x, y, pressure));
+    await new Promise((resolve) => setTimeout(resolve, 8));
+  }
+  target.dispatchEvent(makePointerEvent("pointerup", x0 + span, y, 0));
+
+  const count = api.getSceneElements().length;
+  log(`自测完成，场景元素数 ${count}`);
+}
+
+export { installTabletSketch };
