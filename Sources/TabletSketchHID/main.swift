@@ -6,6 +6,7 @@ import Foundation
 //   tablet-sketch-hid            正常输出笔与按键事件（逐行 JSON）
 //   tablet-sketch-hid --dump     额外输出原始报文字节，用于核对协议
 //   tablet-sketch-hid --once     打印设备信息后立即退出，用于自检
+//   tablet-sketch-hid --grab     独占设备，系统指针不再跟随笔（应用退出即释放）
 //
 // 退出码：
 //   0  正常退出
@@ -16,13 +17,14 @@ import Foundation
 let arguments = CommandLine.arguments
 let dumpRaw = arguments.contains("--dump")
 let once = arguments.contains("--once")
+let grab = arguments.contains("--grab")
 
 setvbuf(stdout, nil, _IOLBF, 0)
 
 /// 持有信号源，避免被释放
 var signalSources: [DispatchSourceSignal] = []
 
-let reader = HIDReader(dumpRaw: dumpRaw)
+let reader = HIDReader(dumpRaw: dumpRaw, seize: grab)
 
 reader.onFailure = { reason in
     Emit.line(["t": "error", "reason": reason])

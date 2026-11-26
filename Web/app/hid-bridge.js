@@ -32,14 +32,17 @@ class HidBridge {
   }
 
   start() {
-    if (this.stopped) return;
+    if (this.child) return;
+    this.stopped = false;
     const binary = resolveBinary();
     if (!binary) {
       this.onStatus?.({ state: "missing", message: "找不到 tablet-sketch-hid，请先 swift build" });
       return;
     }
 
-    this.child = spawn(binary, [], { stdio: ["ignore", "pipe", "pipe"] });
+    // --grab：独占设备，系统指针不再跟随笔；采集器退出时自动释放
+    const args = process.env.TS_NO_GRAB ? [] : ["--grab"];
+    this.child = spawn(binary, args, { stdio: ["ignore", "pipe", "pipe"] });
 
     this.child.stdout.setEncoding("utf8");
     this.child.stdout.on("data", (chunk) => this.consume(chunk));
@@ -104,6 +107,13 @@ class HidBridge {
     }
     if (payload.t === "error") {
       this.onStatus?.({ state: "error", message: payload.reason });
+      return;
+    }
+    if (payload.t === "grab") {
+      this.onStatus?.({
+        state: payload.ok ? "grabbed" : "grab-failed",
+        message: payload.ok ? "已独占手写板" : "独占失败，退回只读"
+      });
       return;
     }
     if (payload.t === "bye") {

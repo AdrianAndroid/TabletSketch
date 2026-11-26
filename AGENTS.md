@@ -55,9 +55,9 @@ TabletSketch 是独立项目，默认不修改 `MacAppControlDeck`。
 
 ### 强制清单
 
-1. 第一阶段只做**只读 HID**，不切 vendor 模式接管系统指针。
-2. 不安装 KEXT、DriverKit、系统扩展，不关闭 SIP。
-3. 不安装全局 event tap，不替换系统鼠标，不生成全局 CGEvent 移动。
+1. 采集默认只读；需要"把笔锁在应用内"时，允许用标准 `kIOHIDOptionsTypeSeizeDevice` **独占**打开该设备（见 `openspec/changes/seize-pen-input`）。独占必须满足：进程退出、窗口失焦、应用退出三者任一发生即释放；独占失败必须退回只读且不阻塞启动。
+2. 仍然禁止：KEXT、DriverKit、系统扩展、关闭 SIP、厂商私有模式写入。
+3. 不安装全局 event tap，不替换系统鼠标，不生成全局 CGEvent 移动；独占只作用于本板子，不影响鼠标键盘。
 4. 手写板输入只作用于 TabletSketch 自己的窗口，使用应用内虚拟笔光标。
 5. 同一时刻只允许一个输入源写画布：手写板或鼠标，二选一。
 6. HID 只在手写板模式开启或窗口打开时初始化；关闭窗口即停止。

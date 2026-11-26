@@ -21,8 +21,9 @@ public struct PenStateMachine: Sendable {
 
     public struct Config: Sendable {
         /// 归一化压力起笔阈值（含滞回）。
-        public var pressureOn: Double = 0.012
-        public var pressureOff: Double = 0.005
+        /// 真笔是"碰到就出墨"，所以门槛压到极低，压力只用来决定粗细。
+        public var pressureOn: Double = 0.0015
+        public var pressureOff: Double = 0.0008
         /// 点击判定：时长上限（秒）。
         public var tapMaxDuration: TimeInterval = 0.32
         /// 点击判定：位移上限（画布 pt）。

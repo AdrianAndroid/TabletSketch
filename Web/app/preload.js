@@ -23,11 +23,13 @@ function emit(type, detail) {
 
 // HID 状态可能比页面还早到，缓存最后一帧，等页面就绪再补发
 let lastStatus = null;
+let lastGrab = null;
 
 // 页面侧桥装好之后，再把 chrome 切到手写板模式
 document.addEventListener("ts:ready", () => {
   emit("ts:chrome", true);
   if (lastStatus) emit("ts:hid-status", lastStatus);
+  if (lastGrab !== null) emit("ts:hid", { t: "grab", ok: lastGrab });
   emit("ts:log", "[shell] tabletSketch 桥已就绪");
 });
 
@@ -37,6 +39,7 @@ document.addEventListener("ts:log", (event) => {
 });
 
 ipcRenderer.on("pen:event", (_event, payload) => {
+  if (payload?.t === "grab") lastGrab = !!payload.ok;
   emit("ts:hid", payload);
 });
 

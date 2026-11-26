@@ -56,6 +56,9 @@ export function TabletShell({ onOpenSettings }) {
   const [bubble, setBubble] = useState(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [toastText, setToastText] = useState("");
+  // 独占打开成功后系统不再画指针，光标由我们自己画
+  const [grabbed, setGrabbed] = useState(false);
+  const [penPos, setPenPos] = useState(null);
   const [boards, setBoards] = useState([]);
   const [activeBoard, setActiveBoard] = useState(null);
   const dragRef = useRef(null);
@@ -134,6 +137,18 @@ export function TabletShell({ onOpenSettings }) {
     } catch {
       /* 忽略损坏数据 */
     }
+  }, []);
+
+  // 笔尖位置与独占状态
+  useEffect(() => {
+    const onPos = (event) => setPenPos(event.detail);
+    const onGrab = (event) => setGrabbed(!!event.detail?.ok);
+    window.addEventListener("tablet:penpos", onPos);
+    window.addEventListener("tablet:grab", onGrab);
+    return () => {
+      window.removeEventListener("tablet:penpos", onPos);
+      window.removeEventListener("tablet:grab", onGrab);
+    };
   }, []);
 
   // 画板列表和当前选择写回本地，下次打开还是这张
@@ -359,7 +374,11 @@ export function TabletShell({ onOpenSettings }) {
           <span className="ts-topbar-tool">{currentLabel}</span>
         </div>
         <div className="ts-topbar-right">
-          <span className={`ts-hid-dot${hidStatus?.state === "ready" ? " is-on" : ""}`} />
+          <span
+            className={`ts-hid-dot${hidStatus?.state === "ready" ? " is-on" : ""}${
+              grabbed ? " is-grab" : ""
+            }`}
+          />
           <span className="ts-topbar-hid">
             {hidStatus?.state === "ready"
               ? "手写板已连接"
@@ -459,6 +478,13 @@ export function TabletShell({ onOpenSettings }) {
         <SettingsWindow
           onClose={() => setSettingsOpen(false)}
           onClearCanvas={() => bridge()?.clearCanvas()}
+        />
+      ) : null}
+
+      {grabbed && penPos ? (
+        <div
+          className={`ts-pen-cursor${penPos.down ? " is-down" : ""}`}
+          style={{ transform: `translate3d(${penPos.x}px, ${penPos.y}px, 0)` }}
         />
       ) : null}
 

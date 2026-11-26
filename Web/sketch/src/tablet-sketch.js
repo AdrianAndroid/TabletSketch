@@ -96,6 +96,25 @@ function clampPressure(value) {
   return p === 0.5 ? 0.5001 : p;
 }
 
+/**
+ * 压力整形。
+ *
+ * 硬件给的是线性 0..1，Excalidraw 用 perfect-freehand 的 thinning 直接算线宽，
+ * 轻触时压力只有 0.02 左右，线宽接近发丝，看起来像"没画出来"。
+ * 这里把低区抬起来、高区留余量：0 → 0，0.05 → 约 0.3，0.5 → 约 0.66，1 → 1。
+ * 保证"一碰就看得见"，同时重压还能明显变粗。
+ */
+function shapePressure(value) {
+  const p = Math.max(0, Math.min(1, Number.isFinite(value) ? value : 0));
+  if (p <= 0) return 0;
+  const knee = 0.04;
+  if (p < knee) {
+    // 极轻的一段线性拉起，避免落笔瞬间从 0 跳到 0.3
+    return 0.32 * (p / knee);
+  }
+  return 0.32 + 0.68 * Math.pow((p - knee) / (1 - knee), 0.7);
+}
+
 function makePointerEvent(type, x, y, pressure) {
   const isUp = type === "pointerup" || type === "pointercancel";
   return new PointerEvent(type, {
@@ -156,6 +175,12 @@ function isChrome(el) {
 function applyHidEvent(payload) {
   if (!payload) return;
 
+  // 采集器独占成功：系统指针不再跟随笔，界面需要自己画一个光标
+  if (payload.t === "grab") {
+    window.dispatchEvent(new CustomEvent("tablet:grab", { detail: { ok: !!payload.ok } }));
+    return;
+  }
+
   // 侧键与板载键单独处理，不参与坐标映射
   if (payload.t === "side" || payload.t === "aux") {
     window.dispatchEvent(
@@ -173,6 +198,12 @@ function applyHidEvent(payload) {
   const rect = target.getBoundingClientRect();
   const x = rect.left + payload.x * rect.width;
   const y = rect.top + payload.y * rect.height;
+
+  window.dispatchEvent(
+    new CustomEvent("tablet:penpos", {
+      detail: { x, y, down: payload.ph === "began" || payload.ph === "changed" }
+    })
+  );
 
   if (payload.ph === "hover") {
     window.dispatchEvent(new CustomEvent("tablet:hover", { detail: { x, y } }));
@@ -200,7 +231,8 @@ function applyHidEvent(payload) {
 
   const type =
     payload.ph === "began" ? "pointerdown" : payload.ph === "ended" ? "pointerup" : "pointermove";
-  target.dispatchEvent(makePointerEvent(type, x, y, payload.p || 0));
+  const pressure = payload.ph === "ended" ? 0 : shapePressure(payload.p || 0);
+  target.dispatchEvent(makePointerEvent(type, x, y, pressure));
 }
 
 function sceneCenter() {

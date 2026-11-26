@@ -170,7 +170,26 @@ function createWindow() {
     }
   });
 
+  // 独占会把整块板子从系统里拿走，切到别的应用时必须还回去，
+  // 否则用户会以为鼠标/笔坏了。回焦再拿回来。
+  let releaseTimer = null;
+  win.on("blur", () => {
+    if (!hid) return;
+    clearTimeout(releaseTimer);
+    releaseTimer = setTimeout(() => {
+      if (win && !win.isFocused()) {
+        hid?.stop();
+        hid = null;
+      }
+    }, 260);
+  });
+  win.on("focus", () => {
+    clearTimeout(releaseTimer);
+    if (!hid) startHid();
+  });
+
   win.on("closed", () => {
+    clearTimeout(releaseTimer);
     win = null;
   });
 }
@@ -226,6 +245,28 @@ function runDemo(win) {
       code:
         "window.dispatchEvent(new CustomEvent('tablet:demo',{detail:'none'}));" +
         "window.dispatchEvent(new Event('tablet:save'))"
+    },
+    {
+      name: "11-light",
+      code: `(() => {
+        const send = (ph, x, y, pr) => document.dispatchEvent(new CustomEvent('ts:hid', { detail: { t: 'pen', ph, x, y, p: pr } }));
+        window.tabletSketch?.setTool('freedraw');
+        setTimeout(() => {
+          // 极轻的一笔：压力只有 0.02~0.06，用来验证"轻触也看得见"
+          send('began', 0.28, 0.72, 0.02);
+          for (let i = 1; i <= 40; i++) {
+            const x = 0.28 + i * 0.006;
+            const pr = 0.02 + (i / 40) * 0.04;
+            setTimeout(() => send('changed', x, 0.72 + Math.sin(i / 6) * 0.02, pr), i * 8);
+          }
+          setTimeout(() => send('ended', 0.52, 0.72, 0), 40 * 8 + 40);
+        }, 200);
+      })()`
+    },
+    {
+      name: "10-cursor",
+      code:
+        "document.dispatchEvent(new CustomEvent('ts:hid',{detail:{t:'pen',ph:'hover',x:0.62,y:0.38}}))"
     }
   ];
   let at = 2800;

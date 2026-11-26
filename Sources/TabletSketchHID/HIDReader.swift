@@ -2,11 +2,14 @@ import Foundation
 import IOKit.hid
 import TabletSketchCore
 
-/// 只读 HID 采集器。
+/// HID 采集器。
 ///
-/// 只做一件事：打开 XP-Pen Deco 640 的 vendor 定义接口（UsagePage 0xFF0A / Usage 1），
+/// 打开 XP-Pen Deco 640 的 vendor 定义接口（UsagePage 0xFF0A / Usage 1），
 /// 收 12 字节笔报告和按键报告，翻译成归一化 JSON 行写到 stdout。
-/// 不接管系统指针、不安装任何驱动、不改动任何系统状态。
+///
+/// `seize: true` 时用 `kIOHIDOptionsTypeSeizeDevice` 独占设备：系统不再收到这块板子的
+/// 输入，指针不会跟着笔跑，笔只在本应用里生效。进程退出即释放，不装驱动、不改系统设置。
+/// 独占失败会退回只读模式并在日志里说明。
 final class HIDReader {
     struct Device {
         let vendorID: Int
@@ -25,13 +28,17 @@ final class HIDReader {
     private var stateMachine = PenStateMachine()
     private var lastAuxKeys: Set<Int> = []
     private var opened = false
+    private let seize: Bool
+    private(set) var seized = false
 
     init(
         device: Device = Device(vendorID: 0x28BD, productID: 0x2904, usagePage: 0xFF0A, usage: 1),
-        dumpRaw: Bool = false
+        dumpRaw: Bool = false,
+        seize: Bool = false
     ) {
         self.device = device
         self.dumpRaw = dumpRaw
+        self.seize = seize
     }
 
     func start() {
@@ -52,13 +59,27 @@ final class HIDReader {
         IOHIDManagerRegisterInputReportCallback(manager, Self.reportReceived, context)
         IOHIDManagerScheduleWithRunLoop(manager, CFRunLoopGetMain(), CFRunLoopMode.defaultMode.rawValue)
 
-        let status = IOHIDManagerOpen(manager, IOOptionBits(kIOHIDOptionsTypeNone))
+        var status = IOHIDManagerOpen(manager, IOOptionBits(kIOHIDOptionsTypeNone))
+        if seize {
+            // 独占打开：系统收不到这块板子的输入，笔就只作用于本应用。
+            // 失败时退回只读，避免整块板子直接不能用。
+            let seizeStatus = IOHIDManagerOpen(manager, IOOptionBits(kIOHIDOptionsTypeSeizeDevice))
+            if seizeStatus == kIOReturnSuccess {
+                seized = true
+                status = seizeStatus
+            } else {
+                Emit.line(["t": "grab", "ok": false, "status": Int(seizeStatus)])
+            }
+        }
         guard status == kIOReturnSuccess else {
             // kIOReturnNotPermitted 通常意味着缺「输入监控」授权
             onFailure?(status == kIOReturnNotPermitted ? "PEN_PERMISSION" : "PEN_ERROR")
             return
         }
         opened = true
+        if seized {
+            Emit.line(["t": "grab", "ok": true])
+        }
     }
 
     /// 由 main 在启动 2 秒后调用：届时若没匹配到设备，判定为未连接。
