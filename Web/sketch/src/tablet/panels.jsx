@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Icons } from "./icons";
+import { saveScene, openScene } from "./scene-files";
 
 /** 下拉面板的公共外壳：标题 + 内容 + 可选页脚。 */
 function Panel({ title, side, onClose, footer, children, width = 264 }) {
@@ -38,47 +39,17 @@ function Row({ icon, label, hint, onClick, danger, active }) {
 
 // ---------------------------------------------------------------- 菜单
 
-export function MenuPanel({ side, onClose, onSettings }) {
+export function MenuPanel({ side, onClose, onSettings, boardName }) {
   const [confirming, setConfirming] = useState(false);
 
   const save = () => {
-    const api = window.tabletSketch;
-    if (!api) return;
-    const payload = {
-      type: "excalidraw",
-      version: 2,
-      source: "tablet-sketch",
-      elements: api.getSceneElements?.() ?? [],
-      appState: { viewBackgroundColor: "#ffffff" },
-      files: {}
-    };
-    const blob = new Blob([JSON.stringify(payload)], { type: "application/json" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = `画板-${new Date().toISOString().slice(0, 10)}.excalidraw`;
-    link.click();
-    setTimeout(() => URL.revokeObjectURL(url), 2000);
+    saveScene(boardName);
     onClose();
   };
 
   const open = () => {
-    const input = document.createElement("input");
-    input.type = "file";
-    input.accept = ".excalidraw,application/json";
-    input.onchange = async () => {
-      const file = input.files?.[0];
-      if (!file) return;
-      const text = await file.text();
-      try {
-        const data = JSON.parse(text);
-        window.tabletSketch?.loadScene?.(data);
-      } catch {
-        window.alert("这个文件不是有效的 .excalidraw");
-      }
-      onClose();
-    };
-    input.click();
+    openScene();
+    onClose();
   };
 
   return (
@@ -214,9 +185,23 @@ export function LibraryPanel({ side, onClose }) {
 
 // ---------------------------------------------------------------- 更多
 
-export function MorePanel({ side, onClose, slots, onPick }) {
+export function MorePanel({ side, onClose, slots, onPick, boardName }) {
+  const quick = (action) => {
+    const api = window.tabletSketch;
+    if (action === "undo") api?.undo();
+    if (action === "redo") api?.redo();
+    if (action === "fit") api?.zoomToFit();
+    if (action === "save") saveScene(boardName);
+    onClose();
+  };
+
   return (
     <Panel title="更多" side={side} onClose={onClose}>
+      <Row icon="undo" label="撤销" hint="⌘Z" onClick={() => quick("undo")} />
+      <Row icon="redo" label="重做" hint="⇧⌘Z" onClick={() => quick("redo")} />
+      <Row icon="save" label="保存画板" hint="⌘S" onClick={() => quick("save")} />
+      <Row icon="fit" label="适应画布" onClick={() => quick("fit")} />
+      <div className="ts-divider" />
       {slots.length === 0 ? (
         <div className="ts-empty">没有超出的工具</div>
       ) : (

@@ -8,7 +8,14 @@
 // 真正合成 PointerEvent 的逻辑在页面的 tablet-sketch.js 里，因为要在主世界
 // 才能拿到 Excalidraw 的 API 对象。
 
-const { ipcRenderer } = require("electron");
+const { ipcRenderer, contextBridge } = require("electron");
+
+// 文件存取走 contextBridge，主世界直接 await
+contextBridge.exposeInMainWorld("tsFiles", {
+  save: (payload) => ipcRenderer.invoke("ts:save-scene", payload),
+  open: () => ipcRenderer.invoke("ts:open-scene"),
+  reveal: () => ipcRenderer.invoke("ts:reveal-sketches")
+});
 
 function emit(type, detail) {
   document.dispatchEvent(new CustomEvent(type, { detail }));
@@ -48,6 +55,14 @@ ipcRenderer.on("pen:selftest", () => {
 
 ipcRenderer.on("menu:settings", () => {
   emit("ts:open-settings");
+});
+
+ipcRenderer.on("menu:save", () => {
+  emit("ts:menu-save");
+});
+
+ipcRenderer.on("menu:open", () => {
+  emit("ts:menu-open");
 });
 
 // 兜底：页面已经装好但 ts:ready 错过了（例如 preload 加载顺序异常）

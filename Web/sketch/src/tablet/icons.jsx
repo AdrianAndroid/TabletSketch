@@ -121,6 +121,15 @@ export const Icons = {
 
   undo: () => <Svg><path d="M7 7L3.5 10.5 7 14" /><path d="M3.5 10.5h8a4.5 4.5 0 010 9H9" /></Svg>,
 
+  redo: () => <Svg><path d="M13 7l3.5 3.5L13 14" /><path d="M16.5 10.5h-8a4.5 4.5 0 000 9H11" /></Svg>,
+
+  save: () => (
+    <Svg>
+      <path d="M3.5 5.5A2 2 0 015.5 3.5h9L19 8v10.5a1 1 0 01-1 1h-13a1 1 0 01-1-1z" />
+      <path d="M7 3.5v5h7v-5M7 19.5v-6h10v6" />
+    </Svg>
+  ),
+
   fit: () => (
     <Svg>
       <path d="M3 7V3.8h4M17 7V3.8h-4M3 13v3.2h4M17 13v3.2h-4" />

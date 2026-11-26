@@ -513,6 +513,12 @@ function installTabletSketch(excalidrawApi) {
   document.addEventListener("ts:open-settings", () => {
     window.dispatchEvent(new CustomEvent("tablet:open-settings"));
   });
+  document.addEventListener("ts:menu-save", () => {
+    window.dispatchEvent(new CustomEvent("tablet:save"));
+  });
+  document.addEventListener("ts:menu-open", () => {
+    window.dispatchEvent(new CustomEvent("tablet:open"));
+  });
   document.addEventListener("ts:selftest", () => runSelfTest());
   document.addEventListener("ts:chrome", (event) => {
     bridge.setTabletChrome(event.detail !== false);

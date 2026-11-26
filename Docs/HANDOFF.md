@@ -39,12 +39,12 @@ cd Web/app && TS_DEMO=1 npm start       # 截八张 /tmp/ts_demo_*.png
 | M2 | Electron 接 HID 子进程 | ✅ `[hid] ready 已连接 Deco 640` |
 | M3 | 笔采样映射 + 压感注入 | ✅ 注入 80 帧压力信封，线两端细中间粗 |
 | M4 | 顶部条 / 浮岛 / 四个下拉 | ✅ 截图核对过 |
-| M5 | 素材面板三态 | 🔶 列表与详情已渲染，插入未实测 |
+| M5 | 素材面板三态 | ✅ 列表 + 二级详情已截图验证，插入未实测 |
 | M6 | 径向菜单 | ✅ 选中/空白两套槽位，圆心贴笔尖 |
 | M7 | 样式气泡 | ✅ 颜色 / 线宽 / 透明三行 |
 | M8 | 设置窗 | ✅ 浮层版，左导航 + 右卡片 |
 | M9 | 板载键映射 | 🔶 侧键通，板载虚拟键未解析 |
-| M10 | 保存 / 打开 / 多画板 | ⬜ |
+| M10 | 保存 / 打开 | ✅ 存到 ~/Pictures/TabletSketch/Sketches，⌘S / ⌘O 走原生对话框。多画板切换仍是壳 |
 | — | 打包 .app | ✅ `Scripts/make-app.sh`，未签名 |
 | — | 真笔验收 | ⬜ 等用户上手 |
 
@@ -75,10 +75,12 @@ Web/sketch/src/                   前端（React）
     icons.jsx                     20 个线性图标
     chrome.css                    全部自绘样式，含深色模式
     settings/SettingsWindow.jsx   设置窗（左导航 + 右卡片）
+    scene-files.js                画板读写（原生通道 + 浏览器回退）
 Web/app/                          Electron 外壳
   main.js                         窗口 + 菜单栏 + 自测/演示序列 + 截图
   preload.js                      主世界与页面的唯一通道（CustomEvent）
   hid-bridge.js                   spawn HID 子进程，按行解析，断线重试
+  （文件存取走 ipcMain.handle：ts:save-scene / ts:open-scene / ts:reveal-sketches）
 Web/vendor/excalidraw/            submodule，v0.18.1 (a2ec288)
 Resources/Sketch/                 前端构建产物（别手改）
 Scripts/make-app.sh               组装 .app
@@ -122,7 +124,10 @@ HID 状态通常先到。`preload` 缓存最后一帧，在 `ts:ready` 时补发
 6. **修六个 bug**：TDZ 白屏、`tablet:hid-status` 与 `ts:hid-status` 名称不一致、状态到达早于挂载、菜单圆心取屏幕中心而不是笔尖、`hasSelection` 在 selectAll 同帧读不到（加 80ms 校正）、`ts:open-settings` 没转发。
 7. **打包**：`Scripts/make-app.sh` 复制 Electron.app、改 Info.plist、把主进程脚本 + 前端产物 + HID 二进制塞进 `Contents/Resources/app`，产出一个可双击的 `Build/TabletSketch.app`。
 8. **测试**：`swift test` 5 个用例通过（`CanvasMapping` 的 init 需要 `canvasRect`，测试里传 `.zero`）。
-9. **验收**：`TS_DEMO=1` 八个步骤逐一截图，确认顶部条、浮岛、菜单/画布/素材下拉、径向菜单、样式气泡、设置窗、侧键弹菜单全部正常；打包版同样跑通。
+9. **存取闭环**：`ts:save-scene` 静默写到 `~/Pictures/TabletSketch/Sketches/<画板名>.excalidraw`（先写 `.tmp` 再改名，R4 要求原子写）；`ts:open-scene` 弹原生对话框。菜单栏加了 ⌘S / ⌘O，保存后有底部提示条。
+10. **补常用动作**：浮岛「更多」面板里固定放 撤销 / 重做 / 保存画板 / 适应画布，不必记快捷键。
+11. **画板名持久化**：`boards` + 当前选择写回 localStorage，顶部标题显示真名。
+12. **验收**：`TS_DEMO=1` 八个步骤逐一截图，确认顶部条、浮岛、菜单/画布/素材下拉、径向菜单、样式气泡、设置窗、侧键弹菜单全部正常；打包版同样跑通。
 
 ---
 
@@ -130,8 +135,8 @@ HID 状态通常先到。`preload` 缓存最后一帧，在 `ts:ready` 时补发
 
 1. **真笔验收**。所有笔链路都是注入事件验证的，没有一笔是真人画的。用户上手时重点看：压感粗细是否跟手、抬笔是否有断线、hover 到浮岛上是否能点。
 2. **板载虚拟键 1–8 没解析**。Swift 侧只做了侧键（report 的 bit1/bit2）的边沿检测，板载键在 Aux Report（Report ID 3）里，还没读。
-3. **画板多档管理只做了壳**。`Shell` 里 `boards` 从 localStorage 读，第一次给一张默认画板；新建 / 切换 / 保存到文件都没接。面板上「新建画布」按钮目前只改 state。
-4. **素材库点击插入没验证**。`insertLibraryItem` 在桥里，`LibraryPanel` 的二级详情也接了，但没实际点过。
+3. **多画板切换只是改名**。新建画板会加进列表并写 localStorage，但切换时不保存上一张的元素、也不加载目标画板的元素 —— 画布内容始终是同一份。真正的多档要么每档存一个文件，要么整份 JSON 里放多个 scene。
+4. **素材库点击插入没验证**。`insertLibraryItem` 在桥里，`LibraryPanel` 的二级详情已渲染（左侧详情 + 两列素材），但点某一项往画布插入这一步没实测。
 5. **样式气泡只覆盖颜色 / 线宽 / 透明**。填充色、线型（实线虚线）、箭头样式都没有。设计上这三样后续按需加，保持恒三行。
 6. **设置项只写不读**。所有开关存进 localStorage，但除了主题跟随系统之外，没有代码去读它们。
 7. **M5 的 fork 改造没动源码**。现在是 `body.tablet-mode` + 一份 CSS 隐藏清单把原生 chrome 藏掉，`Web/vendor/excalidraw` 一行没改。真删代码是后面的事，`Docs/fork-changes.md` 里记了六处计划改动。

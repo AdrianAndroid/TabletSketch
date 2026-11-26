@@ -4,6 +4,7 @@ import { MenuPanel, CanvasPanel, LibraryPanel, MorePanel } from "./panels";
 import { RadialMenu } from "./RadialMenu";
 import { StyleBubble } from "./StyleBubble";
 import { SettingsWindow } from "./settings/SettingsWindow";
+import { saveScene, openScene } from "./scene-files";
 import "./chrome.css";
 
 /** 浮岛默认槽位：前 8 格与板载键 1–8 一一对应。 */
@@ -54,6 +55,7 @@ export function TabletShell({ onOpenSettings }) {
   const [radial, setRadial] = useState(null);
   const [bubble, setBubble] = useState(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [toastText, setToastText] = useState("");
   const [boards, setBoards] = useState([]);
   const [activeBoard, setActiveBoard] = useState(null);
   const dragRef = useRef(null);
@@ -134,6 +136,16 @@ export function TabletShell({ onOpenSettings }) {
     }
   }, []);
 
+  // 画板列表和当前选择写回本地，下次打开还是这张
+  useEffect(() => {
+    if (!boards.length) return;
+    try {
+      localStorage.setItem("tablet.boards", JSON.stringify({ boards, active: activeBoard }));
+    } catch {
+      /* 空间不足就放弃，不影响作画 */
+    }
+  }, [boards, activeBoard]);
+
   const applyTool = useCallback((name) => {
     const api = bridge();
     if (!api) return;
@@ -169,6 +181,36 @@ export function TabletShell({ onOpenSettings }) {
     setOpenPanel(null);
     setRadial(null);
     setBubble({ context, x: penRef.current.x, y: penRef.current.y - 96 });
+  }, []);
+
+  // 菜单栏的「保存画板」「打开画板…」，以及操作后的提示条
+  useEffect(() => {
+    const currentName = () => {
+      try {
+        const parsed = JSON.parse(localStorage.getItem("tablet.boards") || "null");
+        const active = parsed?.boards?.find((board) => board.id === parsed.active);
+        return active?.name || "未命名画板";
+      } catch {
+        return "未命名画板";
+      }
+    };
+    const onSave = () => saveScene(currentName());
+    const onOpen = () => openScene();
+    let timer = 0;
+    const onToast = (event) => {
+      setToastText(String(event.detail || ""));
+      window.clearTimeout(timer);
+      timer = window.setTimeout(() => setToastText(""), 2600);
+    };
+    window.addEventListener("tablet:save", onSave);
+    window.addEventListener("tablet:open", onOpen);
+    window.addEventListener("ts:toast", onToast);
+    return () => {
+      window.removeEventListener("tablet:save", onSave);
+      window.removeEventListener("tablet:open", onOpen);
+      window.removeEventListener("ts:toast", onToast);
+      window.clearTimeout(timer);
+    };
   }, []);
 
   // 演示入口：主进程在全自动验收时用它逐个打开面板
@@ -246,6 +288,8 @@ export function TabletShell({ onOpenSettings }) {
   }, []);
 
   const currentLabel = TOOL_LABEL[tool] || "选择";
+  const currentBoardName =
+    boards.find((board) => board.id === activeBoard)?.name || "未命名画板";
 
   const panelNode = useMemo(() => {
     if (!openPanel) return null;
@@ -254,6 +298,7 @@ export function TabletShell({ onOpenSettings }) {
       return (
         <MenuPanel
           {...common}
+          boardName={boards.find((board) => board.id === activeBoard)?.name}
           onSettings={() => {
             setOpenPanel(null);
             setSettingsOpen(true);
@@ -292,6 +337,7 @@ export function TabletShell({ onOpenSettings }) {
       return (
         <MorePanel
           {...common}
+          boardName={boards.find((board) => board.id === activeBoard)?.name}
           slots={overflow}
           onPick={(slot) => {
             activate(slot);
@@ -308,7 +354,7 @@ export function TabletShell({ onOpenSettings }) {
       {/* 顶部拖动条：整条可拖窗口，双击最大化 */}
       <div className="ts-topbar" onDoubleClick={() => window.dispatchEvent(new Event("ts:maximize"))}>
         <div className="ts-topbar-left">
-          <span className="ts-topbar-title">未命名画板</span>
+          <span className="ts-topbar-title">{currentBoardName}</span>
           <span className="ts-topbar-sep" />
           <span className="ts-topbar-tool">{currentLabel}</span>
         </div>
@@ -415,6 +461,8 @@ export function TabletShell({ onOpenSettings }) {
           onClearCanvas={() => bridge()?.clearCanvas()}
         />
       ) : null}
+
+      {toastText ? <div className="ts-toast">{toastText}</div> : null}
 
       {/* 浮层打开时铺一层透明垫子，点空白关掉且不落笔 */}
       {openPanel || radial || bubble ? (

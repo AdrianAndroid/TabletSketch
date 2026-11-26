@@ -4,8 +4,9 @@
 // 真正的 HID 读取在 Swift 小工具 tablet-sketch-hid 里，这里通过 spawn 拉起来，
 // 逐行读 stdout 的 JSON（见 hid-bridge.js）。
 
-const { app, BrowserWindow, Menu, ipcMain, nativeTheme } = require("electron");
+const { app, BrowserWindow, Menu, ipcMain, nativeTheme, dialog } = require("electron");
 const path = require("node:path");
+const fsp = require("node:fs/promises");
 const { HidBridge } = require("./hid-bridge");
 
 // 开发时指向仓库里的构建产物；打包后 index.html 和本文件一起放在 Resources/app 下
@@ -19,12 +20,70 @@ const DEV = !!process.env.TS_DEV;
 let win = null;
 let hid = null;
 
+// 默认保存位置按 AGENTS.md R4：~/Pictures/TabletSketch/Sketches
+function sketchDir() {
+  return path.join(app.getPath("pictures"), "TabletSketch", "Sketches");
+}
+
+function safeName(name) {
+  return String(name || "未命名画板").replace(/[/\\:*?"<>|]/g, "-").slice(0, 60);
+}
+
+ipcMain.handle("ts:save-scene", async (_event, { name, scene } = {}) => {
+  try {
+    const dir = sketchDir();
+    await fsp.mkdir(dir, { recursive: true });
+    const file = path.join(dir, `${safeName(name)}.excalidraw`);
+    // 先写临时文件再改名，避免写一半掉电把原文件毁掉
+    const tmp = `${file}.tmp`;
+    await fsp.writeFile(tmp, JSON.stringify(scene, null, 2), "utf8");
+    await fsp.rename(tmp, file);
+    return { ok: true, filePath: file };
+  } catch (error) {
+    return { ok: false, message: error.message };
+  }
+});
+
+ipcMain.handle("ts:open-scene", async () => {
+  try {
+    const { canceled, filePaths } = await dialog.showOpenDialog(win, {
+      title: "打开画板",
+      defaultPath: sketchDir(),
+      properties: ["openFile"],
+      filters: [{ name: "Excalidraw", extensions: ["excalidraw", "json"] }]
+    });
+    if (canceled || !filePaths?.length) return { ok: false, canceled: true };
+    const raw = await fsp.readFile(filePaths[0], "utf8");
+    return { ok: true, scene: JSON.parse(raw), filePath: filePaths[0] };
+  } catch (error) {
+    return { ok: false, message: error.message };
+  }
+});
+
+ipcMain.handle("ts:reveal-sketches", () => {
+  const { shell } = require("electron");
+  const dir = sketchDir();
+  fsp.mkdir(dir, { recursive: true }).then(() => shell.openPath(dir));
+  return { ok: true, dir };
+});
+
 function buildMenu() {
   const template = [
     {
       label: "TabletSketch",
       submenu: [
         { role: "about", label: "关于 TabletSketch" },
+        { type: "separator" },
+        {
+          label: "保存画板",
+          accelerator: "CmdOrCtrl+S",
+          click: () => win?.webContents.send("menu:save")
+        },
+        {
+          label: "打开画板…",
+          accelerator: "CmdOrCtrl+O",
+          click: () => win?.webContents.send("menu:open")
+        },
         { type: "separator" },
         {
           label: "设置…",
@@ -144,6 +203,10 @@ function runDemo(win) {
     { name: "03-canvas", code: "window.dispatchEvent(new CustomEvent('tablet:demo',{detail:'canvas'}))" },
     { name: "04-library", code: "window.dispatchEvent(new CustomEvent('tablet:demo',{detail:'library'}))" },
     {
+      name: "04b-library-detail",
+      code: "document.querySelector('.ts-lib')?.click()"
+    },
+    {
       name: "05-radial",
       code: "window.tabletSketch.selectAll(); window.dispatchEvent(new CustomEvent('tablet:demo',{detail:'radial'}))"
     },
@@ -157,6 +220,12 @@ function runDemo(win) {
       code:
         "window.dispatchEvent(new CustomEvent('tablet:demo',{detail:'none'}));" +
         "document.dispatchEvent(new CustomEvent('ts:hid',{detail:{t:'side',keys:[0]}}))"
+    },
+    {
+      name: "09-save",
+      code:
+        "window.dispatchEvent(new CustomEvent('tablet:demo',{detail:'none'}));" +
+        "window.dispatchEvent(new Event('tablet:save'))"
     }
   ];
   let at = 2800;
