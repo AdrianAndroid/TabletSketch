@@ -1023,154 +1023,67 @@ body.tablet-mode {
   background: #4b3ff0;
 }
 
-/* ---------- 板面示意图：上按键带 + 下 16:9 手写区 ---------- */
-.ts-pad {
-  position: fixed;
-  left: 16px;
-  bottom: 16px;
-  z-index: 520;
-  border-radius: 14px;
-  background: rgba(255, 255, 255, 0.97);
-  box-shadow: 0 12px 32px rgba(20, 22, 40, 0.14), 0 0 0 1px rgba(20, 22, 40, 0.06);
-  overflow: hidden;
-  backdrop-filter: blur(8px);
-}
+/* ---------------------------------------------------------------- 按键带（窗口即板面） */
 
-.ts-pad-band {
-  position: relative;
-  background: #fafbfd;
-  border-bottom: 1px solid #eef0f4;
-}
-
-.ts-pad-key {
+.ts-band {
   position: absolute;
-  top: 50%;
-  width: 28px;
-  height: 28px;
-  margin: -14px 0 0 -14px;
-  padding: 0;
-  border: 0;
-  border-radius: 50%;
-  background: transparent;
-  cursor: pointer;
-}
-
-.ts-pad-key span {
-  position: absolute;
-  inset: 3px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 50%;
-  background: transparent;
-  color: transparent;
-  font-size: 0;
-  transition: background 110ms ease, color 110ms ease, box-shadow 110ms ease;
-}
-
-.ts-pad-key.is-lit span {
-  background: #4b3ff0;
-  color: #fff;
-  font-size: 13px;
-  font-weight: 600;
-  box-shadow: 0 2px 8px rgba(75, 63, 240, 0.35);
-}
-
-.ts-pad-key.is-lit::after {
-  content: "";
-  position: absolute;
-  inset: 3px;
-  border-radius: 50%;
-  border: 2px solid rgba(75, 63, 240, 0.45);
-  animation: ts-pad-ripple 240ms ease-out forwards;
-}
-
-@keyframes ts-pad-ripple {
-  from {
-    transform: scale(1);
-    opacity: 0.9;
-  }
-  to {
-    transform: scale(1.9);
-    opacity: 0;
-  }
-}
-
-.ts-pad-area {
-  position: relative;
-  background: #f4f5f9;
-  box-shadow: inset 0 0 0 1px #e9ebf1;
-  border-radius: 10px;
-  margin: 4px 6px 6px;
-  box-sizing: border-box;
-}
-
-.ts-pad-dot {
-  position: absolute;
-  left: 0;
   top: 0;
-  width: 5px;
-  height: 5px;
-  margin: -2.5px 0 0 -2.5px;
-  border-radius: 50%;
-  background: #4b3ff0;
-  pointer-events: none;
-  transition: width 70ms ease, height 70ms ease, margin 70ms ease, background 70ms ease;
-}
-
-.ts-pad-dot.is-down {
-  width: 12px;
-  height: 12px;
-  margin: -6px 0 0 -6px;
-  background: rgba(75, 63, 240, 0.45);
-  box-shadow: inset 0 0 0 1.5px #4b3ff0;
-}
-
-.ts-pad-collapse {
-  position: absolute;
-  right: 6px;
-  bottom: 6px;
-  width: 20px;
-  height: 20px;
-  padding: 0;
-  border: 0;
-  border-radius: 7px;
-  background: rgba(20, 22, 40, 0.06);
-  color: #8b8f9c;
-  font-size: 13px;
-  line-height: 1;
-  cursor: pointer;
-}
-
-.ts-pad-collapse:hover {
-  background: rgba(20, 22, 40, 0.12);
-  color: #40434e;
-}
-
-.ts-pad-chip {
-  position: fixed;
-  left: 16px;
-  bottom: 16px;
-  z-index: 520;
+  left: 0;
+  right: 0;
+  height: 64px;
   display: flex;
   flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 3px;
-  width: 44px;
-  height: 44px;
-  padding: 0;
-  border: 0;
-  border-radius: 14px;
-  background: rgba(255, 255, 255, 0.97);
-  box-shadow: 0 10px 26px rgba(20, 22, 40, 0.14), 0 0 0 1px rgba(20, 22, 40, 0.06);
-  cursor: pointer;
-  backdrop-filter: blur(8px);
+  pointer-events: auto;
+  -webkit-app-region: drag;
+  background: #ffffff;
+  border-bottom: 1px solid #eceef3;
+  user-select: none;
 }
 
-.ts-pad-chip span {
-  width: 18px;
-  height: 3px;
-  border-radius: 2px;
-  background: #cfd2dc;
+.ts-band-head {
+  height: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 14px 0 84px;
+  flex: 0 0 auto;
+}
+
+.ts-band-keys {
+  position: relative;
+  height: 42px;
+  flex: 0 0 auto;
+}
+
+/* 常态完全不可见，只保热区；按下瞬间才显形 */
+.ts-band-key {
+  position: absolute;
+  top: 50%;
+  width: 26px;
+  height: 26px;
+  margin: -13px 0 0 -13px;
+  padding: 0;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  color: transparent;
+  font-size: 12px;
+  font-weight: 600;
+  -webkit-app-region: no-drag;
+  transition: none;
+}
+
+.ts-layer .ts-band-key,
+.ts-layer .ts-band-key span {
+  color: transparent;
+}
+
+.ts-layer .ts-band-key.is-lit,
+.ts-layer .ts-band-key.is-lit span {
+  background: var(--ts-accent);
+  color: #ffffff;
+  background-clip: padding-box;
+  box-shadow: 0 0 0 6px rgba(10, 132, 255, 0.14);
 }

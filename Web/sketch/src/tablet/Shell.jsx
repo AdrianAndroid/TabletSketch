@@ -5,7 +5,7 @@ import { RadialMenu } from "./RadialMenu";
 import { StyleBubble } from "./StyleBubble";
 import { SettingsWindow } from "./settings/SettingsWindow";
 import { saveScene, openScene } from "./scene-files";
-import { PadMap } from "./PadMap.jsx";
+import { PadBand } from "./PadBand.jsx";
 import "./chrome.css";
 
 /** 浮岛默认槽位：前 8 格与板载键 1–8 一一对应。 */
@@ -60,7 +60,6 @@ export function TabletShell({ onOpenSettings }) {
   // 独占打开成功后系统不再画指针，光标由我们自己画
   const [grabbed, setGrabbed] = useState(false);
   const [penPos, setPenPos] = useState(null);
-  const [penN, setPenN] = useState(null);
   const [padFlash, setPadFlash] = useState(null);
   const [boards, setBoards] = useState([]);
   const [activeBoard, setActiveBoard] = useState(null);
@@ -148,15 +147,6 @@ export function TabletShell({ onOpenSettings }) {
     const onPos = (event) => {
       const detail = event.detail;
       setPenPos(detail);
-      setPenN(
-        detail
-          ? {
-              nx: detail.nx ?? 0,
-              ny: detail.ny ?? 0,
-              down: !!detail.down
-            }
-          : null
-      );
     };
     const onGrab = (event) => setGrabbed(!!event.detail?.ok);
     window.addEventListener("tablet:penpos", onPos);
@@ -382,8 +372,9 @@ export function TabletShell({ onOpenSettings }) {
 
   return (
     <div className="ts-layer" data-ts-ui="" onClick={(event) => event.stopPropagation()}>
-      {/* 顶部拖动条：整条可拖窗口，双击最大化 */}
-      <div className="ts-topbar" onDoubleClick={() => window.dispatchEvent(new Event("ts:maximize"))}>
+      {/* 按键带：窗口顶部就是真机的按键带，整条可拖窗口、双击最大化 */}
+      <div className="ts-band" onDoubleClick={() => window.dispatchEvent(new Event("ts:maximize"))}>
+        <div className="ts-band-head">
         <div className="ts-topbar-left">
           <span className="ts-topbar-title">{currentBoardName}</span>
           <span className="ts-topbar-sep" />
@@ -405,6 +396,15 @@ export function TabletShell({ onOpenSettings }) {
                   : "连接中"}
           </span>
         </div>
+        </div>
+
+        <PadBand
+          flash={padFlash}
+          onKey={(index) => {
+            const slot = visible[index];
+            if (slot) activate(slot);
+          }}
+        />
       </div>
 
       {/* 右侧浮岛 */}
@@ -503,15 +503,6 @@ export function TabletShell({ onOpenSettings }) {
           style={{ transform: `translate3d(${penPos.x}px, ${penPos.y}px, 0)` }}
         />
       ) : null}
-
-      <PadMap
-        pen={penN}
-        flash={padFlash}
-        onKey={(index) => {
-          const slot = visible[index];
-          if (slot) activate(slot);
-        }}
-      />
 
       {toastText ? <div className="ts-toast">{toastText}</div> : null}
 

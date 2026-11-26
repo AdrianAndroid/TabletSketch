@@ -268,3 +268,26 @@ HID 状态通常先到。`preload` 缓存最后一帧，在 `ts:ready` 时补发
 - `TS_FAKE=1` 会持续发 `aux` 事件（固定键 4），用于截图验证高亮位置。
 
 **未验证**：`AuxReportParser` 假设 `bytes[2]` 是 8 位键位图（逆向推测）。采集器首帧会打 `{"t":"auxraw","bytes":[...]}`，按真机按键时核对。
+
+---
+
+## 2026-11-27 · 窗口即板面（window-as-pad）
+
+用户否掉了"卡片式缩略示意图"：
+
+> 我想的不是这个小窗映射，而是整个窗口映射。相当于这个小窗的样式就是整个工作窗口。
+
+改成窗口级版式，`openspec/changes/window-as-pad/` 记录齐全。
+
+- `.deck-shell` 变成 `padding-top: 64px` 的纵向 flex；Excalidraw 被包进新增的 `.ts-stage`。
+- `.ts-stage` = `flex:1`、`margin: 8px 12px 12px`、`radius 14`、底色 `#f5f7fa`。实测 `[12,72,1176,676]`，比例 1.74，接近真机手写区 1.795。
+- `.ts-band` 64px（上排 22 放画板名/工具/连接状态，下排 42 放 8 键）。上排 `padding-left: 84px` 避让红绿灯。
+- `PadBand.jsx` 用百分比定位 8 键：`0.129/0.236/0.342/0.45/0.555/0.661/0.766/0.872`。实测 `left = 142/270/397/527/653/780/906/1033`，间距 127。
+- 键常态 `color: transparent` + 透明底；按下亮 26pt 主色圆 + 白字 + 6px 光环，180ms 后消失。**注意**：`.ts-layer button { color: inherit }` 特异性更高，必须用 `.ts-layer .ts-band-key` 才压得住。
+- 画布 `viewBackgroundColor` 改 `#f5f7fa`（`initialData` 与 `loadScene` 两处都改），和手写区同色；导出 PNG 仍强制白底。
+- 笔的映射不用改代码：`canvasEl().getBoundingClientRect()` 现在天然等于 `.ts-stage`（实测 `[12,72,1176,676]`），笔点与笔迹都自动关在手写区里。
+- 删除 `PadMap.jsx`、`.ts-pad*` 全部样式、收起芯片；`Shell.jsx` 里的 `penN` 状态一并摘掉。
+
+验证：`TS_FAKE=1` 下截图确认 —— 键 4 的蓝点落在 band 45% 处、正弦笔迹完整落在手写区内、端点不越界。
+
+**仍需真机确认**：板载键的 `bytes[2]` 位图假设，以及 8 键的实际手感。

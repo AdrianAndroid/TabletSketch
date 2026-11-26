@@ -145,7 +145,7 @@ function loadScene(json) {
       elements,
       appState: {
         ...restoredAppState,
-        viewBackgroundColor: "#ffffff",
+        viewBackgroundColor: "#f5f7fa",
         theme: "light",
         selectedElementIds: {},
         editingElement: null,
@@ -883,6 +883,7 @@ function App() {
 
   return (
     <div className="deck-shell">
+      <div className="ts-stage">
       <Excalidraw
         langCode="zh-CN"
         theme="light"
@@ -905,7 +906,7 @@ function App() {
         }}
         initialData={{
           elements: [],
-          appState: { viewBackgroundColor: "#ffffff", currentItemFontFamily: 1 }
+          appState: { viewBackgroundColor: "#f5f7fa", currentItemFontFamily: 1 }
         }}
         excalidrawAPI={(api) => {
           excalidrawAPI = api;
@@ -953,6 +954,7 @@ function App() {
           </div>
         )}
       />
+      </div>
       {boardState.boards.length > 0 ? (
         <BoardSwitcher ui={boardState} switching={switching} />
       ) : null}
