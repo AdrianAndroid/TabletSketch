@@ -25,11 +25,17 @@ final class HIDReader {
 
     private let device: Device
     private let dumpRaw: Bool
+    private var lastDumpBytes: [UInt8] = []
     private var manager: IOHIDManager?
     private var penDevice: IOHIDDevice?
     /// Digitizer 接口（page 0x0D usage 2）：系统认笔靠它，笔一进感应区就上报，
     /// 悬停圆圈只能从这里拿数据；厂商通道只在笔接触后才有内容。
     private var digitizerDevice: IOHIDDevice?
+    /// 鼠标 + 键盘复合接口（page 1 usage 2）：板载 8 键在这里以标准键盘报告上报。
+    private var pointerDevice: IOHIDDevice?
+    private var lastPointerDump: [UInt8] = []
+    /// 板载键上一次的 (modifier, keycode)，用来做边沿触发
+    private var lastPadKey: UInt16?
     private var lastDigitizerAt: TimeInterval = 0
     private var loggedFirstDigitizer = false
     private var lastFlags: UInt8 = 0xFF
@@ -192,6 +198,8 @@ final class HIDReader {
             reader.handle(reportID: reportID, bytes: bytes)
         } else if let digitizer = reader.digitizerDevice, CFEqual(hidDevice, digitizer) {
             reader.handleDigitizer(reportID: reportID, bytes: bytes)
+        } else if let pointer = reader.pointerDevice, CFEqual(hidDevice, pointer) {
+            reader.handlePointer(reportID: reportID, bytes: bytes)
         }
     }
 
@@ -223,6 +231,10 @@ final class HIDReader {
 
         if usagePage == 0x0D, usage == 2 {
             digitizerDevice = hidDevice
+        }
+
+        if usagePage == 0x01, usage == 2 {
+            pointerDevice = hidDevice
         }
 
         guard usagePage == device.usagePage, usage == device.usage else {
@@ -277,8 +289,9 @@ final class HIDReader {
     // MARK: - 报文
 
     private func handle(reportID: UInt32, bytes: [UInt8]) {
-        if dumpRaw {
-            Emit.line(["t": "raw", "id": Int(reportID), "bytes": bytes.map { Int($0) }])
+        if dumpRaw, bytes != lastDumpBytes {
+            lastDumpBytes = bytes
+            Emit.line(["t": "raw", "id": Int(reportID), "n": bytes.count, "bytes": bytes.map { Int($0) }])
         }
 
         // 笔报告：Report ID 2，12 字节
@@ -304,6 +317,48 @@ final class HIDReader {
             emitAux(aux)
             return
         }
+    }
+
+    /// 鼠标+键盘复合接口。板载键就是走这里的键盘报告（Report ID 6）。
+    /// 先只做原始对拍：按键前后哪几个字节变，决定了键位映射表。
+    /// 板载 8 键的出厂键盘映射（modifier<<8 | keycode）。
+    /// 实测自 Deco 640：按键被固件翻译成标准快捷键，走 page 1 的 Report ID 6。
+    /// 顺序按真机逐键实测（用户按 1→8 时的原始报文顺序）。
+    private static let padKeyMap: [UInt16: Int] = [
+        0x0005: 0, // 键1  b
+        0x0008: 1, // 键2  e
+        0x002F: 2, // 键3  [
+        0x0030: 3, // 键4  ]
+        0x0156: 4, // 键5  Ctrl + 小键盘 -
+        0x0157: 5, // 键6  Ctrl + 小键盘 +
+        0x011D: 6, // 键7  Ctrl + Z
+        0x031D: 7  // 键8  Ctrl + Shift + Z
+    ]
+
+    private func handlePointer(reportID: UInt32, bytes: [UInt8]) {
+        if dumpRaw, bytes != lastPointerDump {
+            lastPointerDump = bytes
+            Emit.line([
+                "t": "raw",
+                "src": "pointer",
+                "id": Int(reportID),
+                "n": bytes.count,
+                "bytes": bytes.map { Int($0) }
+            ])
+        }
+
+        // 键盘报告：ID 6，8 字节 = [id, modifier, key, 填充…]
+        guard reportID == 6, bytes.count >= 3 else { return }
+        let code = UInt16(bytes[2])
+        if code == 0 {
+            lastPadKey = nil
+            return
+        }
+        let combo = (UInt16(bytes[1]) << 8) | code
+        guard combo != lastPadKey else { return }
+        lastPadKey = combo
+        guard let index = Self.padKeyMap[combo] else { return }
+        Emit.line(["t": "aux", "keys": [index]])
     }
 
     private func emitPen(_ pen: PenReport) {

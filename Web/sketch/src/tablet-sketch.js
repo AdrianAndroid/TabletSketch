@@ -104,15 +104,15 @@ function clampPressure(value) {
  * 这里把低区抬起来、高区留余量：0 → 0，0.05 → 约 0.3，0.5 → 约 0.66，1 → 1。
  * 保证"一碰就看得见"，同时重压还能明显变粗。
  */
+const PRESSURE_FLOOR = 0.35;
+
 function shapePressure(value) {
   const p = Math.max(0, Math.min(1, Number.isFinite(value) ? value : 0));
-  if (p <= 0) return 0;
-  const knee = 0.04;
-  if (p < knee) {
-    // 极轻的一段线性拉起，避免落笔瞬间从 0 跳到 0.3
-    return 0.32 * (p / knee);
-  }
-  return 0.32 + 0.68 * Math.pow((p - knee) / (1 - knee), 0.7);
+  // 只要笔尖接触过面板就必须留下看得见的线，不能按原始压力线性缩放。
+  // 之前轻触时 p≈0.006，算出来 0.05，线宽接近 0，用户体感就是"点了没反应"。
+  if (p <= 0) return PRESSURE_FLOOR;
+  const lifted = 0.35 + 0.65 * Math.pow(p, 0.6);
+  return Math.max(PRESSURE_FLOOR, Math.min(1, lifted));
 }
 
 function makePointerEvent(type, x, y, pressure) {
@@ -145,7 +145,6 @@ function makePointerEvent(type, x, y, pressure) {
 function pushSamples(samples) {
   const target = canvasEl();
   if (!target) return;
-  if (payload.ph === "began") ensureDrawTool();
 
   for (const sample of samples) {
     const [x, y, pressure, phase] = sample;
@@ -214,7 +213,10 @@ function applyHidEvent(payload) {
 
   const target = canvasEl();
   if (!target) return;
-  if (payload.ph === "began") ensureDrawTool();
+  if (payload.ph === "began") {
+    ensureDrawTool();
+    console.log("[pen] began", JSON.stringify(payload));
+  }
   const rect = target.getBoundingClientRect();
   const x = rect.left + payload.x * rect.width;
   const y = rect.top + payload.y * rect.height;

@@ -42,6 +42,8 @@ class HidBridge {
 
     // --grab：独占设备，系统指针不再跟随笔；采集器退出时自动释放
     const args = process.env.TS_NO_GRAB ? [] : ["--grab"];
+    // TS_DUMP=1：把 vendor 通道原始报文按帧去重后打到 stdout，用来对拍板载键编码
+    if (process.env.TS_DUMP === "1") args.push("--dump");
     this.child = spawn(binary, args, { stdio: ["ignore", "pipe", "pipe"] });
 
     this.child.stdout.setEncoding("utf8");

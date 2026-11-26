@@ -101,11 +101,11 @@ export function TabletShell({ onOpenSettings }) {
         if (keys.includes(2)) applyTool("eraser");
         return;
       }
-      // 板载键：1–8 对应浮岛前 8 格，同时点亮板面示意图上对应的位置
+      // 板载键：只点亮按键带上对应的位置。
+      // 真机这 8 个键固件已经翻译成 b/e/[/]/Ctrl+Z…，动作由原生快捷键完成，
+      // 这里再联动浮岛会双重执行（例如撤销被撤两次）。
       for (const index of keys) {
         setPadFlash({ index, seq: Date.now() + index });
-        const slot = visible[index];
-        if (slot) activate(slot);
       }
     };
     window.addEventListener("tablet:hid-status", onStatus);

@@ -43,7 +43,11 @@ export function PadBand({ flash, onKey }) {
           className={`ts-band-key${lit.has(index) ? " is-lit" : ""}`}
           style={{ left: `${center * 100}%` }}
           title={`板载键 ${index + 1}`}
-          onClick={() => {
+          onPointerDown={(event) => {
+            // 用 pointerdown 而不是 click：不等成对事件，按下即响应
+            event.preventDefault();
+            event.stopPropagation();
+            console.log("[band] press key", index + 1);
             light(index);
             onKey?.(index);
           }}

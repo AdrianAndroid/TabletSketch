@@ -1034,13 +1034,14 @@ body.tablet-mode {
   display: flex;
   flex-direction: column;
   pointer-events: auto;
-  -webkit-app-region: drag;
+  -webkit-app-region: no-drag;
   background: #ffffff;
   border-bottom: 1px solid #eceef3;
   user-select: none;
 }
 
 .ts-band-head {
+  -webkit-app-region: drag;
   height: 22px;
   display: flex;
   align-items: center;
@@ -1050,6 +1051,7 @@ body.tablet-mode {
 }
 
 .ts-band-keys {
+  -webkit-app-region: no-drag;
   position: relative;
   height: 42px;
   flex: 0 0 auto;
@@ -1075,9 +1077,15 @@ body.tablet-mode {
   transition: none;
 }
 
+/* 常态：极淡的圈 + 淡灰数字，能看出键位但不抢画面 */
+.ts-band-key {
+  background: #fbfcfd;
+  box-shadow: inset 0 0 0 1px #e9ecf2;
+}
+
 .ts-layer .ts-band-key,
 .ts-layer .ts-band-key span {
-  color: transparent;
+  color: #b6bcc8;
 }
 
 .ts-layer .ts-band-key.is-lit,
