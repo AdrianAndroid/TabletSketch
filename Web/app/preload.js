@@ -14,15 +14,28 @@ function emit(type, detail) {
   document.dispatchEvent(new CustomEvent(type, { detail }));
 }
 
+// HID 状态可能比页面还早到，缓存最后一帧，等页面就绪再补发
+let lastStatus = null;
+
 // 页面侧桥装好之后，再把 chrome 切到手写板模式
 document.addEventListener("ts:ready", () => {
   emit("ts:chrome", true);
+  if (lastStatus) emit("ts:hid-status", lastStatus);
   emit("ts:log", "[shell] tabletSketch 桥已就绪");
 });
 
 // 把页面日志转到主进程终端，方便不开 DevTools 时排错
 document.addEventListener("ts:log", (event) => {
   ipcRenderer.send("ts:log", event.detail);
+});
+
+ipcRenderer.on("pen:event", (_event, payload) => {
+  emit("ts:hid", payload);
+});
+
+ipcRenderer.on("pen:status", (_event, status) => {
+  lastStatus = status;
+  emit("ts:hid-status", status);
 });
 
 ipcRenderer.on("pen:samples", (_event, samples) => {

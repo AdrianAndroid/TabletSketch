@@ -145,6 +145,64 @@ function pushSamples(samples) {
   }
 }
 
+/**
+ * HID 事件的两个去处：落在 chrome 上就当成一次点击，落在画布上才画。
+ * `elementFromPoint` 就是命中系统，不需要额外的坐标判断。
+ */
+function isChrome(el) {
+  return !!(el && el.closest && el.closest("[data-ts-ui]"));
+}
+
+function applyHidEvent(payload) {
+  if (!payload) return;
+
+  // 侧键与板载键单独处理，不参与坐标映射
+  if (payload.t === "side" || payload.t === "aux") {
+    window.dispatchEvent(
+      new CustomEvent("tablet:keys", {
+        detail: { kind: payload.t, keys: payload.keys || [] }
+      })
+    );
+    return;
+  }
+
+  if (payload.t !== "pen") return;
+
+  const target = canvasEl();
+  if (!target) return;
+  const rect = target.getBoundingClientRect();
+  const x = rect.left + payload.x * rect.width;
+  const y = rect.top + payload.y * rect.height;
+
+  if (payload.ph === "hover") {
+    window.dispatchEvent(new CustomEvent("tablet:hover", { detail: { x, y } }));
+    return;
+  }
+
+  const hit = document.elementFromPoint(x, y);
+
+  // 落在自绘 UI 上：转成一次点击
+  if (isChrome(hit)) {
+    if (payload.ph === "began") {
+      hit.dispatchEvent(
+        new MouseEvent("pointerdown", { bubbles: true, cancelable: true, clientX: x, clientY: y })
+      );
+    } else if (payload.ph === "ended") {
+      hit.dispatchEvent(
+        new MouseEvent("pointerup", { bubbles: true, cancelable: true, clientX: x, clientY: y })
+      );
+      hit.dispatchEvent(
+        new MouseEvent("click", { bubbles: true, cancelable: true, clientX: x, clientY: y })
+      );
+    }
+    return;
+  }
+
+  const type =
+    payload.ph === "began" ? "pointerdown" : payload.ph === "ended" ? "pointerup" : "pointermove";
+  target.dispatchEvent(makePointerEvent(type, x, y, payload.p || 0));
+}
+
 function sceneCenter() {
   const state = api.getAppState();
   const zoom = state.zoom?.value || 1;
@@ -247,6 +305,61 @@ function installTabletSketch(excalidrawApi) {
     hasSelection() {
       const selected = api.getAppState().selectedElementIds || {};
       return Object.keys(selected).some((id) => selected[id]);
+    },
+
+    // ---- 场景 ----
+    getSceneElements() {
+      return api.getSceneElements();
+    },
+    loadScene(data) {
+      if (!data || !Array.isArray(data.elements)) return false;
+      api.updateScene({
+        elements: restoreElements(data.elements, null),
+        appState: { selectedElementIds: {} },
+        captureUpdate: "IMMEDIATELY"
+      });
+      return true;
+    },
+    selectAll() {
+      const ids = api
+        .getSceneElements()
+        .filter((element) => !element.isDeleted)
+        .map((element) => element.id);
+      api.updateScene({
+        appState: { selectedElementIds: Object.fromEntries(ids.map((id) => [id, true])) }
+      });
+      return true;
+    },
+    deleteSelection() {
+      const selected = api.getAppState().selectedElementIds || {};
+      if (!Object.keys(selected).length) return false;
+      const rest = api.getSceneElements().filter((element) => !selected[element.id]);
+      api.updateScene({
+        elements: rest,
+        appState: { selectedElementIds: {} },
+        captureUpdate: "IMMEDIATELY"
+      });
+      return true;
+    },
+    duplicateSelection() {
+      const selected = api.getAppState().selectedElementIds || {};
+      const picked = api.getSceneElements().filter((element) => selected[element.id]);
+      if (!picked.length) return false;
+      const stamp = Date.now().toString(36);
+      const clones = picked.map((element, index) => ({
+        ...element,
+        id: `${element.id}-dup-${stamp}-${index}`,
+        x: element.x + 16,
+        y: element.y + 16
+      }));
+      api.updateScene({
+        elements: [...api.getSceneElements(), ...clones],
+        appState: {
+          selectedElementIds: Object.fromEntries(clones.map((element) => [element.id, true]))
+        },
+        captureUpdate: "IMMEDIATELY"
+      });
+      return true;
     },
 
     // ---- 历史 ----
@@ -389,6 +502,16 @@ function installTabletSketch(excalidrawApi) {
   document.addEventListener("ts:pen", (event) => {
     const samples = event.detail;
     if (Array.isArray(samples)) pushSamples(samples);
+  });
+  document.addEventListener("ts:hid", (event) => applyHidEvent(event.detail));
+  document.addEventListener("ts:hid-status", (event) => {
+    // 缓存一份：界面可能在状态到达之后才挂载，挂载时要能读到
+    window.__tsHidStatus = event.detail;
+    window.dispatchEvent(new CustomEvent("tablet:hid-status", { detail: event.detail }));
+  });
+  // 菜单栏「设置…」从 preload 的 DOM 事件转到界面侧
+  document.addEventListener("ts:open-settings", () => {
+    window.dispatchEvent(new CustomEvent("tablet:open-settings"));
   });
   document.addEventListener("ts:selftest", () => runSelfTest());
   document.addEventListener("ts:chrome", (event) => {

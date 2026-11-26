@@ -87,8 +87,8 @@ public enum PenReportParser {
             barrel1: (status & 0b0000_0010) != 0,
             barrel2: (status & 0b0000_0100) != 0,
             eraser: (status & 0b0000_1000) != 0,
-            x: min(x, maxX),
-            y: min(y, maxY),
+            x: min(x, PenReport.maxX),
+            y: min(y, PenReport.maxY),
             pressure: pressure,
             tiltX: Int8(bitPattern: bytes[8]),
             tiltY: Int8(bitPattern: bytes[9])

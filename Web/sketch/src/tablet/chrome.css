@@ -1,0 +1,972 @@
+/* 手写板模式的自绘界面。所有元素都挂在 .ts-layer 下，根节点带 data-ts-ui，
+   笔事件靠 elementFromPoint 判断落点，因此每个可点区域必须自己铺满尺寸。 */
+
+:root {
+  --ts-bg: #ffffff;
+  --ts-surface: rgba(252, 252, 253, 0.86);
+  --ts-surface-solid: #fcfcfd;
+  --ts-line: rgba(19, 20, 23, 0.08);
+  --ts-line-strong: rgba(19, 20, 23, 0.14);
+  --ts-text: #1b1b1f;
+  --ts-text-dim: #6b6f76;
+  --ts-accent: #0a84ff;
+  --ts-accent-soft: rgba(10, 132, 255, 0.12);
+  --ts-danger: #e03131;
+  --ts-radius: 12px;
+  --ts-shadow: 0 8px 28px rgba(16, 18, 24, 0.14), 0 1px 2px rgba(16, 18, 24, 0.08);
+}
+
+body.tablet-mode {
+  background: var(--ts-bg);
+}
+
+/* 整层不拦截指针，让画布能收到鼠标；只有具体控件自己开 pointer-events。
+   笔输入由 elementFromPoint 判断，不需要这层挡着。 */
+.ts-layer {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 60;
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC", sans-serif;
+  font-size: 13px;
+  color: var(--ts-text);
+  -webkit-font-smoothing: antialiased;
+}
+
+.ts-layer button {
+  pointer-events: auto;
+  font-family: inherit;
+  font-size: inherit;
+  color: inherit;
+  border: 0;
+  background: none;
+  cursor: default;
+}
+
+/* ---------------------------------------------------------------- 顶部条 */
+
+.ts-topbar {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 14px 0 84px;
+  pointer-events: auto;
+  -webkit-app-region: drag;
+  background: linear-gradient(to bottom, rgba(255, 255, 255, 0.94), rgba(255, 255, 255, 0));
+  user-select: none;
+}
+
+.ts-topbar-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--ts-text-dim);
+}
+
+.ts-topbar-title {
+  font-weight: 500;
+  color: var(--ts-text);
+}
+
+.ts-topbar-sep {
+  width: 1px;
+  height: 11px;
+  background: var(--ts-line-strong);
+}
+
+.ts-topbar-tool {
+  padding: 1px 7px;
+  border-radius: 5px;
+  background: var(--ts-accent-soft);
+  color: var(--ts-accent);
+  font-weight: 500;
+}
+
+.ts-topbar-right {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: var(--ts-text-dim);
+}
+
+.ts-hid-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #c9ccd2;
+  transition: background 0.2s ease;
+}
+
+.ts-hid-dot.is-on {
+  background: #30b158;
+}
+
+/* ---------------------------------------------------------------- 浮岛 */
+
+.ts-island {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  pointer-events: auto;
+  background: var(--ts-surface);
+  backdrop-filter: blur(16px) saturate(1.6);
+  -webkit-backdrop-filter: blur(16px) saturate(1.6);
+  border: 1px solid var(--ts-line);
+  border-radius: 16px;
+  box-shadow: var(--ts-shadow);
+  padding: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  transition: left 0.18s ease, right 0.18s ease;
+}
+
+.ts-island--right {
+  right: 12px;
+}
+
+.ts-island--left {
+  left: 12px;
+}
+
+.ts-island-grip {
+  height: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #c2c6cd;
+  cursor: grab;
+  pointer-events: auto;
+}
+
+.ts-island-grip:active {
+  cursor: grabbing;
+}
+
+.ts-island-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 44px);
+  gap: 4px;
+}
+
+.ts-cell {
+  width: 44px;
+  height: 44px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #3d4046;
+  transition: background 0.12s ease, color 0.12s ease;
+}
+
+.ts-cell:hover {
+  background: rgba(19, 20, 23, 0.06);
+}
+
+.ts-cell.is-on {
+  background: var(--ts-accent);
+  color: #fff;
+}
+
+.ts-cell.is-open {
+  background: var(--ts-accent-soft);
+  color: var(--ts-accent);
+}
+
+.ts-cell--more {
+  color: #8a8f97;
+}
+
+/* ---------------------------------------------------------------- 下拉面板 */
+
+.ts-panel {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  pointer-events: auto;
+  background: var(--ts-surface-solid);
+  border: 1px solid var(--ts-line);
+  border-radius: var(--ts-radius);
+  box-shadow: var(--ts-shadow);
+  display: flex;
+  flex-direction: column;
+  max-height: 70vh;
+  overflow: hidden;
+  animation: ts-pop 0.14s ease-out;
+}
+
+.ts-panel--right {
+  right: 118px;
+}
+
+.ts-panel--left {
+  left: 118px;
+}
+
+@keyframes ts-pop {
+  from {
+    opacity: 0;
+    transform: translateY(-50%) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(-50%) scale(1);
+  }
+}
+
+.ts-panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 12px 8px;
+  border-bottom: 1px solid var(--ts-line);
+}
+
+.ts-panel-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ts-text);
+}
+
+.ts-panel-close {
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--ts-text-dim);
+}
+
+.ts-panel-close:hover {
+  background: rgba(19, 20, 23, 0.06);
+}
+
+.ts-panel-body {
+  padding: 6px;
+  overflow-y: auto;
+}
+
+.ts-panel-foot {
+  padding: 8px;
+  border-top: 1px solid var(--ts-line);
+}
+
+.ts-row {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 8px 8px;
+  border-radius: 8px;
+  text-align: left;
+  min-height: 34px;
+}
+
+.ts-row:hover {
+  background: rgba(19, 20, 23, 0.05);
+}
+
+.ts-row.is-danger {
+  color: var(--ts-danger);
+}
+
+.ts-row.is-danger:hover {
+  background: rgba(224, 49, 49, 0.09);
+}
+
+.ts-row-icon {
+  width: 20px;
+  display: flex;
+  justify-content: center;
+  color: var(--ts-text-dim);
+}
+
+.ts-row.is-danger .ts-row-icon {
+  color: var(--ts-danger);
+}
+
+.ts-row-label {
+  flex: 1;
+}
+
+.ts-row-hint {
+  font-size: 11px;
+  color: #a2a7ae;
+}
+
+.ts-divider {
+  height: 1px;
+  margin: 5px 8px;
+  background: var(--ts-line);
+}
+
+.ts-empty {
+  padding: 18px 10px;
+  text-align: center;
+  color: #a2a7ae;
+  font-size: 12px;
+}
+
+.ts-confirm {
+  padding: 10px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--ts-text-dim);
+}
+
+.ts-confirm-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.ts-btn {
+  min-height: 30px;
+  padding: 0 12px;
+  border-radius: 8px;
+  background: rgba(19, 20, 23, 0.06);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+.ts-btn:hover {
+  background: rgba(19, 20, 23, 0.1);
+}
+
+.ts-btn.is-danger {
+  background: rgba(224, 49, 49, 0.1);
+  color: var(--ts-danger);
+}
+
+.ts-btn.is-wide {
+  width: 100%;
+}
+
+/* 画布列表 */
+.ts-board {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 10px;
+  border-radius: 8px;
+  text-align: left;
+}
+
+.ts-board:hover {
+  background: rgba(19, 20, 23, 0.05);
+}
+
+.ts-board.is-on {
+  background: var(--ts-accent-soft);
+}
+
+.ts-board-main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.ts-board-name {
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ts-board-meta {
+  font-size: 11px;
+  color: #a2a7ae;
+}
+
+.ts-board.is-on svg {
+  color: var(--ts-accent);
+}
+
+/* 素材 */
+.ts-lib-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-height: 52vh;
+  overflow-y: auto;
+}
+
+.ts-lib {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  text-align: left;
+}
+
+.ts-lib:hover {
+  background: rgba(19, 20, 23, 0.05);
+}
+
+.ts-lib.is-on {
+  background: var(--ts-accent-soft);
+}
+
+.ts-lib-name {
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ts-lib-count {
+  font-size: 11px;
+  color: #a2a7ae;
+}
+
+.ts-lib-detail {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  pointer-events: auto;
+  background: var(--ts-surface-solid);
+  border: 1px solid var(--ts-line);
+  border-radius: var(--ts-radius);
+  box-shadow: var(--ts-shadow);
+  max-height: 60vh;
+  overflow: hidden;
+  animation: ts-pop 0.14s ease-out;
+}
+
+.ts-lib-detail--left {
+  right: 400px;
+}
+
+.ts-lib-detail--right {
+  left: 400px;
+}
+
+.ts-lib-desc {
+  margin: 2px 4px 10px;
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--ts-text-dim);
+}
+
+.ts-lib-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 6px;
+}
+
+.ts-lib-item {
+  padding: 9px 8px;
+  border-radius: 8px;
+  background: rgba(19, 20, 23, 0.04);
+  font-size: 12px;
+  text-align: left;
+  min-height: 34px;
+}
+
+.ts-lib-item:hover {
+  background: var(--ts-accent-soft);
+  color: var(--ts-accent);
+}
+
+/* ---------------------------------------------------------------- 径向菜单 */
+
+.ts-radial {
+  position: absolute;
+  pointer-events: auto;
+  animation: ts-radial-in 0.16s ease-out;
+}
+
+@keyframes ts-radial-in {
+  from {
+    opacity: 0;
+    transform: scale(0.9);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.ts-radial-svg {
+  overflow: visible;
+  filter: drop-shadow(0 8px 22px rgba(16, 18, 24, 0.12));
+}
+
+.ts-radial-path {
+  fill: #ffffff;
+  stroke: rgba(19, 20, 23, 0.16);
+  stroke-width: 1;
+  pointer-events: auto;
+  transition: fill 0.1s ease;
+}
+
+.ts-radial-path:hover {
+  fill: var(--ts-accent-soft);
+}
+
+.ts-radial-icon {
+  width: 44px;
+  height: 44px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1px;
+  color: #3d4046;
+  pointer-events: auto;
+}
+
+.ts-radial-icon span {
+  font-size: 9px;
+  color: var(--ts-text-dim);
+}
+
+.ts-radial-slot:hover .ts-radial-icon {
+  color: var(--ts-accent);
+}
+
+.ts-radial-center {
+  fill: #fff;
+  stroke: rgba(19, 20, 23, 0.12);
+  stroke-width: 1;
+  pointer-events: auto;
+}
+
+.ts-radial-center:hover {
+  fill: rgba(224, 49, 49, 0.08);
+  stroke: rgba(224, 49, 49, 0.4);
+}
+
+.ts-radial-center-label {
+  font-size: 10px;
+  fill: #9aa0a7;
+  pointer-events: none;
+  user-select: none;
+}
+
+/* ---------------------------------------------------------------- 样式气泡 */
+
+.ts-bubble {
+  position: absolute;
+  width: 320px;
+  height: 140px;
+  pointer-events: auto;
+  background: var(--ts-surface-solid);
+  border: 1px solid var(--ts-line);
+  border-radius: var(--ts-radius);
+  box-shadow: var(--ts-shadow);
+  padding: 8px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  animation: ts-pop-plain 0.14s ease-out;
+}
+
+@keyframes ts-pop-plain {
+  from {
+    opacity: 0;
+    transform: scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.ts-bubble-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 11px;
+  color: var(--ts-text-dim);
+  height: 16px;
+}
+
+.ts-bubble-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 32px;
+}
+
+.ts-bubble-label {
+  width: 32px;
+  flex: none;
+  font-size: 11px;
+  color: var(--ts-text-dim);
+}
+
+.ts-bubble-options {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  flex: 1;
+  overflow: hidden;
+}
+
+.ts-swatch {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  border: 1.5px solid rgba(255, 255, 255, 0.9);
+  box-shadow: 0 0 0 1px rgba(19, 20, 23, 0.12);
+  flex: none;
+}
+
+.ts-swatch.is-on {
+  box-shadow: 0 0 0 2px var(--ts-accent);
+}
+
+.ts-swatch--none {
+  background: #fff;
+  position: relative;
+  overflow: hidden;
+}
+
+.ts-swatch--none::after {
+  content: "";
+  position: absolute;
+  inset: -2px;
+  background: linear-gradient(
+    to top right,
+    transparent calc(50% - 0.8px),
+    var(--ts-danger) calc(50% - 0.8px),
+    var(--ts-danger) calc(50% + 0.8px),
+    transparent calc(50% + 0.8px)
+  );
+}
+
+.ts-chip {
+  min-width: 32px;
+  height: 28px;
+  padding: 0 8px;
+  border-radius: 7px;
+  background: rgba(19, 20, 23, 0.05);
+  font-size: 11px;
+  flex: none;
+}
+
+.ts-chip:hover {
+  background: rgba(19, 20, 23, 0.09);
+}
+
+.ts-chip.is-on {
+  background: var(--ts-accent);
+  color: #fff;
+}
+
+/* ---------------------------------------------------------------- 遮罩 */
+
+.ts-scrim {
+  position: absolute;
+  inset: 0;
+  pointer-events: auto;
+  background: transparent;
+}
+
+/* ---------------------------------------------------------------- 设置 */
+
+.ts-settings-wrap {
+  position: fixed;
+  inset: 0;
+  pointer-events: auto;
+  background: rgba(16, 18, 24, 0.18);
+  backdrop-filter: blur(2px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 80;
+}
+
+.ts-settings {
+  width: 660px;
+  height: 700px;
+  max-width: calc(100vw - 48px);
+  max-height: calc(100vh - 48px);
+  background: var(--ts-surface-solid);
+  border-radius: 14px;
+  box-shadow: 0 24px 64px rgba(16, 18, 24, 0.28);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.ts-settings-head {
+  height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 14px;
+  border-bottom: 1px solid var(--ts-line);
+  -webkit-app-region: drag;
+}
+
+.ts-settings-head h2 {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.ts-settings-body {
+  flex: 1;
+  display: flex;
+  min-height: 0;
+}
+
+.ts-settings-nav {
+  width: 200px;
+  flex: none;
+  border-right: 1px solid var(--ts-line);
+  padding: 10px 8px;
+  overflow-y: auto;
+}
+
+.ts-nav-group + .ts-nav-group {
+  margin-top: 12px;
+}
+
+.ts-nav-title {
+  display: block;
+  padding: 2px 10px 6px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: #a2a7ae;
+}
+
+.ts-nav-item {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 10px;
+  border-radius: 8px;
+  text-align: left;
+  color: #3d4046;
+}
+
+.ts-nav-item svg {
+  width: 16px;
+  height: 16px;
+  color: #8a8f97;
+}
+
+.ts-nav-item:hover {
+  background: rgba(19, 20, 23, 0.05);
+}
+
+.ts-nav-item.is-on {
+  background: var(--ts-accent);
+  color: #fff;
+}
+
+.ts-nav-item.is-on svg {
+  color: #fff;
+}
+
+.ts-settings-main {
+  flex: 1;
+  padding: 16px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.ts-card {
+  background: #f6f7f9;
+  border-radius: 10px;
+  padding: 12px 14px;
+}
+
+.ts-card-title {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin: 0 0 10px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.ts-card-title svg {
+  width: 15px;
+  height: 15px;
+  color: #8a8f97;
+}
+
+.ts-card-note {
+  margin: 8px 0 0;
+  font-size: 11px;
+  line-height: 1.5;
+  color: #9aa0a7;
+}
+
+.ts-field + .ts-field {
+  border-top: 1px solid rgba(19, 20, 23, 0.06);
+  margin-top: 8px;
+  padding-top: 8px;
+}
+
+.ts-field-main {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 30px;
+}
+
+.ts-field-label {
+  font-size: 12px;
+}
+
+.ts-field-control {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.ts-field-control input[type="range"] {
+  width: 120px;
+  accent-color: var(--ts-accent);
+}
+
+.ts-field-value {
+  font-size: 11px;
+  color: var(--ts-text-dim);
+  min-width: 24px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.ts-field-hint {
+  margin: 2px 0 0;
+  font-size: 11px;
+  color: #9aa0a7;
+}
+
+.ts-toggle {
+  width: 36px;
+  height: 20px;
+  border-radius: 10px;
+  background: #d6d9de;
+  position: relative;
+  transition: background 0.16s ease;
+}
+
+.ts-toggle.is-on {
+  background: var(--ts-accent);
+}
+
+.ts-toggle-knob {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+  transition: transform 0.16s ease;
+}
+
+.ts-toggle.is-on .ts-toggle-knob {
+  transform: translateX(16px);
+}
+
+.ts-segments {
+  display: flex;
+  background: rgba(19, 20, 23, 0.05);
+  border-radius: 7px;
+  padding: 2px;
+}
+
+.ts-segment {
+  min-width: 40px;
+  height: 24px;
+  padding: 0 8px;
+  border-radius: 5px;
+  font-size: 11px;
+  color: var(--ts-text-dim);
+}
+
+.ts-segment.is-on {
+  background: #fff;
+  color: var(--ts-text);
+  box-shadow: 0 1px 2px rgba(16, 18, 24, 0.12);
+}
+
+/* 深色模式：跟随系统 */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --ts-bg: #121212;
+    --ts-surface: rgba(38, 39, 43, 0.86);
+    --ts-surface-solid: #26272b;
+    --ts-line: rgba(255, 255, 255, 0.09);
+    --ts-line-strong: rgba(255, 255, 255, 0.16);
+    --ts-text: #eceef1;
+    --ts-text-dim: #9aa0a7;
+    --ts-shadow: 0 10px 30px rgba(0, 0, 0, 0.45);
+  }
+
+  .ts-cell {
+    color: #d3d6db;
+  }
+
+  .ts-cell:hover {
+    background: rgba(255, 255, 255, 0.08);
+  }
+
+  .ts-row:hover,
+  .ts-board:hover,
+  .ts-lib:hover,
+  .ts-nav-item:hover {
+    background: rgba(255, 255, 255, 0.08);
+  }
+
+  .ts-radial-path {
+    fill: rgba(44, 45, 50, 0.94);
+    stroke: rgba(255, 255, 255, 0.12);
+  }
+
+  .ts-radial-center {
+    fill: #2c2d32;
+    stroke: rgba(255, 255, 255, 0.14);
+  }
+
+  .ts-card {
+    background: #2f3035;
+  }
+
+  .ts-toggle {
+    background: #4a4d54;
+  }
+
+  .ts-segments {
+    background: rgba(255, 255, 255, 0.08);
+  }
+
+  .ts-segment.is-on {
+    background: #3a3c42;
+    color: var(--ts-text);
+  }
+
+  .ts-swatch--none {
+    background: #2c2d32;
+  }
+}

@@ -1,0 +1,425 @@
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Icons } from "./icons";
+import { MenuPanel, CanvasPanel, LibraryPanel, MorePanel } from "./panels";
+import { RadialMenu } from "./RadialMenu";
+import { StyleBubble } from "./StyleBubble";
+import { SettingsWindow } from "./settings/SettingsWindow";
+import "./chrome.css";
+
+/** 浮岛默认槽位：前 8 格与板载键 1–8 一一对应。 */
+const DEFAULT_SLOTS = [
+  { id: "menu", icon: "menu", label: "菜单", panel: "menu" },
+  { id: "canvas", icon: "canvas", label: "画布", panel: "canvas" },
+  { id: "library", icon: "library", label: "素材", panel: "library" },
+  { id: "pen", icon: "pen", label: "笔", tool: "freedraw" },
+  { id: "eraser", icon: "eraser", label: "擦", tool: "eraser" },
+  { id: "hand", icon: "hand", label: "手", tool: "hand" },
+  { id: "select", icon: "select", label: "选", tool: "selection" },
+  { id: "rectangle", icon: "rectangle", label: "矩", tool: "rectangle" },
+  { id: "ellipse", icon: "ellipse", label: "椭", tool: "ellipse" },
+  { id: "arrow", icon: "arrow", label: "箭", tool: "arrow" },
+  { id: "text", icon: "text", label: "字", tool: "text" },
+  { id: "diamond", icon: "diamond", label: "菱", tool: "diamond" },
+  { id: "line", icon: "line", label: "线", tool: "line" },
+  { id: "image", icon: "image", label: "图", tool: "image" },
+  { id: "lock", icon: "lock", label: "锁", action: "lock" }
+];
+
+/** 双排上限 16 格，超过部分进「更多」。 */
+const VISIBLE_LIMIT = 15;
+
+const TOOL_LABEL = {
+  freedraw: "笔",
+  eraser: "橡皮",
+  hand: "平移",
+  selection: "选择",
+  rectangle: "矩形",
+  ellipse: "椭圆",
+  arrow: "箭头",
+  line: "直线",
+  text: "文字",
+  diamond: "菱形",
+  image: "图片"
+};
+
+function bridge() {
+  return window.tabletSketch ?? null;
+}
+
+export function TabletShell({ onOpenSettings }) {
+  const [openPanel, setOpenPanel] = useState(null);
+  const [side, setSide] = useState("right");
+  const [tool, setTool] = useState("selection");
+  const [hidStatus, setHidStatus] = useState(() => window.__tsHidStatus || null);
+  const [radial, setRadial] = useState(null);
+  const [bubble, setBubble] = useState(null);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [boards, setBoards] = useState([]);
+  const [activeBoard, setActiveBoard] = useState(null);
+  const dragRef = useRef(null);
+  // 笔最近一次落点：径向菜单和样式气泡都以它为中心，而不是屏幕中心
+  const penRef = useRef({ x: window.innerWidth / 2, y: window.innerHeight / 2 });
+
+  const visible = DEFAULT_SLOTS.slice(0, VISIBLE_LIMIT);
+  const overflow = DEFAULT_SLOTS.slice(VISIBLE_LIMIT);
+
+  // 记住笔的悬停位置，菜单弹出时贴着笔尖
+  useEffect(() => {
+    const onHover = (event) => {
+      if (event.detail) penRef.current = event.detail;
+    };
+    window.addEventListener("tablet:hover", onHover);
+    return () => window.removeEventListener("tablet:hover", onHover);
+  }, []);
+
+  // 工具状态跟着画布走（用户可能用快捷键切了工具）
+  useEffect(() => {
+    const timer = setInterval(() => {
+      const api = bridge();
+      if (!api) return;
+      const next = api.getTool();
+      if (next) setTool(next);
+    }, 400);
+    return () => clearInterval(timer);
+  }, []);
+
+  // HID 状态、板载键、侧键
+  useEffect(() => {
+    const onStatus = (event) => setHidStatus(event.detail);
+    const onKeys = (event) => {
+      const { kind, keys } = event.detail;
+      if (kind === "side") {
+        if (keys.includes(0)) openRadial();
+        if (keys.includes(1)) openBubble();
+        if (keys.includes(2)) applyTool("eraser");
+        return;
+      }
+      // 板载键：1–8 对应浮岛前 8 格
+      for (const index of keys) {
+        const slot = visible[index];
+        if (slot) activate(slot);
+      }
+    };
+    window.addEventListener("tablet:hid-status", onStatus);
+    window.addEventListener("tablet:keys", onKeys);
+    return () => {
+      window.removeEventListener("tablet:hid-status", onStatus);
+      window.removeEventListener("tablet:keys", onKeys);
+    };
+  }, [visible]);
+
+  // 菜单栏「设置…」
+  useEffect(() => {
+    const handler = () => setSettingsOpen(true);
+    window.addEventListener("tablet:open-settings", handler);
+    return () => window.removeEventListener("tablet:open-settings", handler);
+  }, []);
+
+  // 画布列表由原生侧维护；这里先读本地存储兜底
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem("tablet.boards");
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        setBoards(parsed.boards || []);
+        setActiveBoard(parsed.active || null);
+        return;
+      }
+      // 第一次打开：先给一张默认画板，别让面板空着
+      const first = { id: "default", name: "未命名画板", elements: 0, updatedAt: Date.now() };
+      setBoards([first]);
+      setActiveBoard(first.id);
+    } catch {
+      /* 忽略损坏数据 */
+    }
+  }, []);
+
+  const applyTool = useCallback((name) => {
+    const api = bridge();
+    if (!api) return;
+    api.setTool(name);
+    setTool(name === "freedraw" ? "freedraw" : name);
+  }, []);
+
+  const openRadial = useCallback(() => {
+    const api = bridge();
+    if (!api) return;
+    const hasSelection = api.hasSelection();
+    const { x, y } = penRef.current;
+    setOpenPanel(null);
+    setBubble(null);
+    setRadial({ x, y, hasSelection });
+    // 刚 selectAll 完就按键时，Excalidraw 的 appState 可能还没落到读口上，
+    // 一帧后再校一次，避免给用户看错槽位
+    setTimeout(() => {
+      const current = bridge();
+      if (!current) return;
+      const next = current.hasSelection();
+      setRadial((menu) => (menu ? { ...menu, hasSelection: next } : menu));
+    }, 80);
+  }, []);
+
+  const openBubble = useCallback(() => {
+    const api = bridge();
+    if (!api) return;
+    const context = api.getContext?.();
+    if (!context) return;
+    // 图片不弹样式
+    if (context.selectedTypes.length === 1 && context.selectedTypes[0] === "image") return;
+    setOpenPanel(null);
+    setRadial(null);
+    setBubble({ context, x: penRef.current.x, y: penRef.current.y - 96 });
+  }, []);
+
+  // 演示入口：主进程在全自动验收时用它逐个打开面板
+  useEffect(() => {
+    const handler = (event) => {
+      const what = event.detail;
+      if (what === "radial") openRadial();
+      else if (what === "bubble") openBubble();
+      else if (what === "settings") setSettingsOpen(true);
+      else if (["menu", "canvas", "library", "more"].includes(what)) {
+        setRadial(null);
+        setBubble(null);
+        setOpenPanel(what);
+      } else {
+        setOpenPanel(null);
+        setSettingsOpen(false);
+        setRadial(null);
+        setBubble(null);
+      }
+    };
+    window.addEventListener("tablet:demo", handler);
+    return () => window.removeEventListener("tablet:demo", handler);
+  }, [openRadial, openBubble]);
+
+  const activate = useCallback(
+    (slot) => {
+      if (slot.panel) {
+        setRadial(null);
+        setBubble(null);
+        setOpenPanel((current) => (current === slot.panel ? null : slot.panel));
+        return;
+      }
+      if (slot.tool) {
+        applyTool(slot.tool);
+        setOpenPanel(null);
+        return;
+      }
+      if (slot.action === "lock") {
+        const api = bridge();
+        const context = api?.getContext?.();
+        if (context?.selectedTypes.length) api.setStyle({ locked: true });
+        return;
+      }
+    },
+    [applyTool]
+  );
+
+  // 拖动换边：按住把手移动，越过窗口中轴就翻到另一侧
+  const onGripDown = (event) => {
+    event.preventDefault();
+    dragRef.current = { startX: event.clientX, side };
+    const onMove = (moveEvent) => {
+      const drag = dragRef.current;
+      if (!drag) return;
+      const mid = window.innerWidth / 2;
+      const next = moveEvent.clientX < mid ? "left" : "right";
+      if (next !== drag.side) {
+        drag.side = next;
+        setSide(next);
+      }
+    };
+    const onUp = () => {
+      dragRef.current = null;
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+    };
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
+  };
+
+  const closeAll = useCallback(() => {
+    setOpenPanel(null);
+    setRadial(null);
+    setBubble(null);
+  }, []);
+
+  const currentLabel = TOOL_LABEL[tool] || "选择";
+
+  const panelNode = useMemo(() => {
+    if (!openPanel) return null;
+    const common = { onClose: () => setOpenPanel(null), side };
+    if (openPanel === "menu") {
+      return (
+        <MenuPanel
+          {...common}
+          onSettings={() => {
+            setOpenPanel(null);
+            setSettingsOpen(true);
+          }}
+        />
+      );
+    }
+    if (openPanel === "canvas") {
+      return (
+        <CanvasPanel
+          {...common}
+          boards={boards}
+          active={activeBoard}
+          onSelect={(id) => {
+            setActiveBoard(id);
+            setOpenPanel(null);
+          }}
+          onCreate={() => {
+            const next = {
+              id: `board-${Date.now().toString(36)}`,
+              name: `画布 ${boards.length + 1}`,
+              elements: 0,
+              updated: Date.now()
+            };
+            setBoards((current) => [...current, next]);
+            setActiveBoard(next.id);
+            setOpenPanel(null);
+          }}
+        />
+      );
+    }
+    if (openPanel === "library") {
+      return <LibraryPanel {...common} />;
+    }
+    if (openPanel === "more") {
+      return (
+        <MorePanel
+          {...common}
+          slots={overflow}
+          onPick={(slot) => {
+            activate(slot);
+            setOpenPanel(null);
+          }}
+        />
+      );
+    }
+    return null;
+  }, [openPanel, side, boards, activeBoard, activate, overflow]);
+
+  return (
+    <div className="ts-layer" data-ts-ui="" onClick={(event) => event.stopPropagation()}>
+      {/* 顶部拖动条：整条可拖窗口，双击最大化 */}
+      <div className="ts-topbar" onDoubleClick={() => window.dispatchEvent(new Event("ts:maximize"))}>
+        <div className="ts-topbar-left">
+          <span className="ts-topbar-title">未命名画板</span>
+          <span className="ts-topbar-sep" />
+          <span className="ts-topbar-tool">{currentLabel}</span>
+        </div>
+        <div className="ts-topbar-right">
+          <span className={`ts-hid-dot${hidStatus?.state === "ready" ? " is-on" : ""}`} />
+          <span className="ts-topbar-hid">
+            {hidStatus?.state === "ready"
+              ? "手写板已连接"
+              : hidStatus?.state === "no-device"
+                ? "未检测到手写板"
+                : hidStatus?.state === "no-permission"
+                  ? "缺少输入监控权限"
+                  : "连接中"}
+          </span>
+        </div>
+      </div>
+
+      {/* 右侧浮岛 */}
+      <div className={`ts-island ts-island--${side}`}>
+        <div
+          className="ts-island-grip"
+          title="拖动换边"
+          onPointerDown={onGripDown}
+          onDoubleClick={() => setSide("right")}
+        >
+          <Icons.grip />
+        </div>
+
+        <div className="ts-island-grid">
+          {visible.map((slot, index) => {
+            const Icon = Icons[slot.icon] || Icons.more;
+            const selected = slot.tool && slot.tool === tool;
+            return (
+              <button
+                key={slot.id}
+                type="button"
+                className={`ts-cell${selected ? " is-on" : ""}${
+                  slot.panel && openPanel === slot.panel ? " is-open" : ""
+                }`}
+                title={`${slot.label}${index < 8 ? `（板载键 ${index + 1}）` : ""}`}
+                onClick={() => activate(slot)}
+              >
+                <Icon />
+              </button>
+            );
+          })}
+          <button
+            type="button"
+            className={`ts-cell ts-cell--more${openPanel === "more" ? " is-open" : ""}`}
+            title="更多"
+            onClick={() => {
+              setRadial(null);
+              setBubble(null);
+              setOpenPanel((current) => (current === "more" ? null : "more"));
+            }}
+          >
+            <Icons.more />
+          </button>
+        </div>
+      </div>
+
+      {panelNode}
+
+      {radial ? (
+        <RadialMenu
+          x={radial.x}
+          y={radial.y}
+          hasSelection={radial.hasSelection}
+          onClose={() => setRadial(null)}
+          onAction={(action, payload) => {
+            const api = bridge();
+            if (!api) return;
+            if (action === "style") {
+              setRadial(null);
+              openBubble();
+              return;
+            }
+            if (action === "duplicate") api.duplicateSelection?.();
+            if (action === "delete") api.deleteSelection?.();
+            if (action === "more") api.contextMenu(radial.x, radial.y);
+            if (action === "selectAll") api.selectAll?.();
+            if (action === "undo") api.undo();
+            if (action === "fit") api.zoomToFit();
+            if (action === "clear") api.clearCanvas();
+            if (action === "background") api.setBackground(payload || "dots");
+            setRadial(null);
+          }}
+        />
+      ) : null}
+
+      {bubble ? (
+        <StyleBubble
+          context={bubble.context}
+          x={bubble.x}
+          y={bubble.y}
+          onClose={() => setBubble(null)}
+          onChange={(patch) => bridge()?.setStyle(patch)}
+        />
+      ) : null}
+
+      {settingsOpen ? (
+        <SettingsWindow
+          onClose={() => setSettingsOpen(false)}
+          onClearCanvas={() => bridge()?.clearCanvas()}
+        />
+      ) : null}
+
+      {/* 浮层打开时铺一层透明垫子，点空白关掉且不落笔 */}
+      {openPanel || radial || bubble ? (
+        <div className="ts-scrim" onClick={closeAll} aria-hidden="true" />
+      ) : null}
+    </div>
+  );
+}

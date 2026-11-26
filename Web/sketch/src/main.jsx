@@ -11,6 +11,7 @@ import "@excalidraw/excalidraw/index.css";
 import "./sketch.css";
 import libraryBundle from "./libraries.generated.json";
 import { installTabletSketch } from "./tablet-sketch.js";
+import { TabletShell } from "./tablet/Shell.jsx";
 
 const MESSAGE_HANDLER = "deckSketch";
 
@@ -28,6 +29,9 @@ function showToast(text, kind = "ok") {
 }
 
 let excalidrawAPI = null;
+
+// 自绘界面（shell 侧面板）通过这个全局读素材库列表
+window.__tsLibraries = libraryBundle;
 let hydrated = false;
 let pendingScene = null;
 let saveTimer = null;
@@ -955,6 +959,7 @@ function App() {
       <div className={`deck-switch-veil${switching ? " is-on" : ""}`} aria-hidden={!switching}>
         <span className="deck-switch-spinner" />
       </div>
+      <TabletShell />
       <Toast />
     </div>
   );
