@@ -26,21 +26,28 @@ TabletSketch SHALL 支持 Deco 640 的 8 个板载虚拟快捷键和 2 个笔侧
 #### Scenario: 板载键默认表
 
 - **WHEN** 首次运行
-- **THEN** 默认映射 MUST 为：
-  - 1 撤销
-  - 2 重做
-  - 3 平移
-  - 4 橡皮
-  - 5 适应画布
-  - 6 取色
-  - 7 线宽
-  - 8 导出
+- **THEN** 板载键 1–8 MUST 绑定浮岛的**前 8 格**（双排时按左列自上而下、再右列），默认映射为：
+  - 1 菜单
+  - 2 画布
+  - 3 素材
+  - 4 笔（自由手写）
+  - 5 擦（橡皮）
+  - 6 手（平移）
+  - 7 选（选择）
+  - 8 矩（矩形）
+
+#### Scenario: 与浮岛同源
+
+- **WHEN** 用户在设置中增删格子、改动内容或拖动换位
+- **THEN** 板载键 1–8 MUST 绑定新的前 8 格
+- **AND** MUST NOT 存在两套独立的映射表
+- **AND** 第 9 格及之后的格子 MUST 只可用笔点，不占用板载键
 
 #### Scenario: 笔侧键默认表
 
 - **WHEN** 首次运行
 - **THEN** 笔侧键 1 MUST 切换橡皮
-- **AND** 笔侧键 2 MUST 呼出径向菜单
+- **AND** 笔侧键 2 MUST 呼出笔尖样式气泡
 
 #### Scenario: 恢复默认
 
@@ -54,13 +61,13 @@ TabletSketch SHALL 支持 Deco 640 的 8 个板载虚拟快捷键和 2 个笔侧
 
 #### Scenario: 保存
 
-- **WHEN** 用户修改映射
-- **THEN** 映射 MUST 写入 `~/Library/Application Support/TabletSketch/keymap.json`
+- **WHEN** 用户修改映射，或增删/调整浮岛格子
+- **THEN** MUST 原子写入 `~/Library/Application Support/TabletSketch/settings.json` 的槽定义
 - **AND** 重启后 MUST 恢复
 
 #### Scenario: 配置损坏
 
-- **WHEN** `keymap.json` 损坏或含未知动作
+- **WHEN** 设置文件损坏或含未知动作
 - **THEN** 应用 MUST 使用默认映射
 - **AND** MUST 备份损坏文件
 - **AND** MUST NOT 崩溃
@@ -77,9 +84,18 @@ TabletSketch SHALL 支持 Deco 640 的 8 个板载虚拟快捷键和 2 个笔侧
 
 #### Scenario: 长按
 
-- **WHEN** 用户长按一个键
-- **THEN** 首版 MUST NOT 连续重复触发
-- **AND** 如果未来支持长按，必须单独定义并记录
+- **WHEN** 用户按住一个板载键超过阈值（默认 350ms）
+- **THEN** 如果该键对应的浮岛格是一个「组」
+- **AND** 屏幕 MUST 在该格旁展开组内选项，供笔点选
+- **AND** 不得在展开前先触发组内首选动作
+- **WHEN** 该格是单一工具或单一动作
+- **THEN** 长按 MUST 等同于单击，MUST NOT 连续重复触发
+
+#### Scenario: 长按未生效
+
+- **WHEN** 设备只在状态变化时上报按下、无法产生持续时间
+- **THEN** 应用 MUST 退化为「单击即展开组」
+- **AND** MUST 在诊断信息中标记该限制
 
 #### Scenario: 快速连按
 
@@ -104,20 +120,21 @@ TabletSketch SHALL 支持 Deco 640 的 8 个板载虚拟快捷键和 2 个笔侧
 
 ### Requirement: 映射界面
 
-应用 SHALL 提供可见、可操作的按键映射界面。
+应用 SHALL 提供可见、可操作的映射界面，且与浮岛共用同一份槽定义。
 
 #### Scenario: 查看
 
-- **WHEN** 用户打开设置 → 手写板按键
-- **THEN** MUST 列出 10 个输入及当前动作
+- **WHEN** 用户打开设置 → 浮岛格子 / 板载键
+- **THEN** MUST 以「候选态」展示板载键 1–8 与浮岛前 8 格的对应关系
+- **AND** MUST 列出 2 个笔侧键及当前动作
 - **AND** MUST 显示设备连接状态
 
 #### Scenario: 修改
 
-- **WHEN** 用户点击某个键
-- **THEN** MUST 提供可选动作列表
-- **AND** 冲突动作 MUST 提示
-- **AND** 保存后 MUST 立即生效
+- **WHEN** 用户点击某个格
+- **THEN** MUST 提供可选动作列表（工具 / 组 / 动作 / 空）
+- **AND** MUST 支持拖动改变顺序
+- **AND** 保存后 MUST 立即生效，板载键同步
 
 #### Scenario: 不可用动作
 

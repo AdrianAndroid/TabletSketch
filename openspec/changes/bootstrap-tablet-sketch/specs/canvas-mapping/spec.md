@@ -10,7 +10,7 @@ TabletSketch SHALL 默认使用 16:9 画布，并把 Deco 640 的有效区等比
 
 - **WHEN** 应用首次打开画布
 - **THEN** 画布宽高比 MUST 为 16:9
-- **AND** 平板 `160×90 mm` 有效区 MUST 映射到整个画布
+- **AND** 平板 `160×90 mm` 有效区 MUST 映射到整个画布（`160:90` 即 `16:9`，两种写法指同一比例）
 - **AND** X/Y 必须使用同一缩放因子，不得各自拉满
 
 #### Scenario: 窗口缩放
@@ -42,31 +42,37 @@ TabletSketch SHALL 默认使用 16:9 画布，并把 Deco 640 的有效区等比
 - **THEN** 应用 MUST 在进入点开始新笔迹
 - **AND** MUST NOT 把画布外路径连接进来
 
-### Requirement: 全窗口映射与画布锁定
+### Requirement: 绘图模式与平移模式
 
-应用 SHALL 提供两种映射模式。
+应用 SHALL 用「绘图 / 平移」两种笔模式取代坐标映射模式；坐标映射本身在两种模式下保持一致。
 
-#### Scenario: 全窗口映射
+#### Scenario: 绘图模式
 
-- **WHEN** 用户使用默认「全窗口映射」
-- **THEN** 笔 MUST 可以移动到顶部/左侧工具
-- **AND** 只有画布矩形内的笔迹 MUST 被提交
-- **AND** 画布外的笔事件 MUST 只用于 UI 命中，不产生笔迹
+- **WHEN** 处于绘图模式（默认）
+- **THEN** 笔在画布矩形内移动 MUST 产生笔迹
+- **AND** 笔点到顶部条或浮岛 MUST 视为 UI 命中，MUST NOT 产生笔迹
+- **AND** 笔点到画布空白 MUST 取消选中，不落墨
 
-#### Scenario: 画布锁定
+#### Scenario: 平移模式
 
-- **WHEN** 用户开启「画布锁定」
-- **THEN** 笔 MUST 只映射到画布矩形
-- **AND** 画布外事件 MUST 被丢弃
-- **AND** 工具 MUST 通过径向菜单或板载键操作
-- **AND** 窗口失焦时 MUST 自动解除锁定
+- **WHEN** 笔在画布内按下并拖动
+- **THEN** MUST 平移画布视口，MUST NOT 产生任何笔迹
+- **AND** 平移量 MUST 与笔位移同向且 1:1，不做加速
+- **AND** 拖动期间 MUST NOT 改变选中状态
 
-#### Scenario: 切换模式
+#### Scenario: 切换
 
-- **WHEN** 用户从全窗口映射切到画布锁定
-- **THEN** 当前笔迹 MUST 结束
-- **AND** 不得把切换前的坐标带入新模式
-- **AND** 界面 MUST 显示锁定状态
+- **WHEN** 用户点浮岛「手」格或对应板载键
+- **THEN** MUST 在绘图 / 平移之间切换
+- **AND** 再点同一次 MUST 切回，不额外确认
+- **AND** 当前模式 MUST 在「手」格上有明确选中态
+- **AND** 切换时 MUST 结束当前笔迹，MUST NOT 把切换前的坐标带入新模式
+
+#### Scenario: 映射不随模式变化
+
+- **WHEN** 在两种模式间切换
+- **THEN** 平板 → 画布的映射 MUST 不变
+- **AND** 画布外坐标 MUST 始终丢弃，不夹边
 
 ### Requirement: 非 16:9 画布
 

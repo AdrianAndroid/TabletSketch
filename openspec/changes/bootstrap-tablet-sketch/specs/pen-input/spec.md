@@ -34,7 +34,9 @@ TabletSketch SHALL 识别 XP-Pen Deco 640（VID `0x28bd` / PID `0x2904`），并
 
 - **WHEN** C 通道打开成功
 - **THEN** 应用 MUST 发送一次初始化报告
-- **AND** 收到 ACK `0xB4 / 0xF2 / 0xF8 / 0xC0` 时 MUST 丢弃，不得当作笔报告
+- **AND** 收到 ACK `0xB4 / 0xF2 / 0xF8` 时 MUST 丢弃，不得当作笔报告
+- **AND** 收到 `0xC0` 时 MUST 按 OutOfRange 处理：立即结束当前笔迹并把笔状态重置为离开感应区，MUST NOT 把它当作 ACK
+- **AND** 因 `0xC0` 重置状态时 MUST NOT 产生多余笔迹或断笔重连
 - **AND** 后续 12 字节笔报告 MUST 正常进入解析器
 
 #### Scenario: 初始化失败
