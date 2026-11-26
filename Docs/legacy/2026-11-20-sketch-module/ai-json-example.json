@@ -1,0 +1,201 @@
+{
+  "format": "macapp-controldeck/ui-sketch",
+  "schemaVersion": 1,
+  "contentType": "application/vnd.macappcontroldeck.ui-sketch+json",
+  "isDiagram": true,
+  "diagramType": "ui-sketch",
+  "ai": {
+    "kind": "diagram",
+    "isDiagram": true,
+    "title": "UI 草图",
+    "message": "这是一个图形/示意图（UI 草图），不是普通文本。请把 scene.elements 当作画布上的图形元素来理解，而不是把坐标、颜色、尺寸当作文本内容。",
+    "howToRead": [
+      "scene.elements 是 Excalidraw 图形元素数组；type 表示 rectangle / ellipse / diamond / arrow / line / freedraw / text / image 等。",
+      "x、y 是元素左上角坐标，width、height 是尺寸；arrow、line、freedraw 的 points 是相对路径点。",
+      "text 元素的 text 字段是画面上的文字；containerId 表示文字绑定在某个形状内。",
+      "backgroundColor 为 transparent 表示无填充；strokeColor 是描边颜色。",
+      "groupIds 相同的元素属于同一组；boundElements 表示箭头或文字与该元素的绑定关系。"
+    ],
+    "selectedOnly": false
+  },
+  "summary": {
+    "elementCount": 5,
+    "typeCounts": {
+      "rectangle": 5
+    },
+    "textCount": 0,
+    "texts": [],
+    "bounds": {
+      "x": 260,
+      "y": 144,
+      "width": 400,
+      "height": 534
+    },
+    "hasImages": false
+  },
+  "notes": [],
+  "scene": {
+    "type": "excalidraw",
+    "version": 2,
+    "source": "deck-sketch://local",
+    "elements": [
+      {
+        "id": "nbrJwuLr9ahdW0m-2qaHk",
+        "type": "rectangle",
+        "x": 260,
+        "y": 144,
+        "width": 400,
+        "height": 534,
+        "angle": 0,
+        "strokeColor": "#1e1e1e",
+        "backgroundColor": "transparent",
+        "fillStyle": "solid",
+        "strokeWidth": 2,
+        "strokeStyle": "solid",
+        "roughness": 1,
+        "opacity": 100,
+        "groupIds": [],
+        "frameId": null,
+        "index": "a0",
+        "roundness": {
+          "type": 3
+        },
+        "seed": 144188742,
+        "version": 46,
+        "versionNonce": 851028245,
+        "isDeleted": false,
+        "boundElements": [],
+        "updated": 1795187655499,
+        "link": null,
+        "locked": false
+      },
+      {
+        "id": "g_cdISIBL1FUYEMUMkxOP",
+        "type": "rectangle",
+        "x": 306,
+        "y": 178,
+        "width": 95,
+        "height": 180,
+        "angle": 0,
+        "strokeColor": "#1e1e1e",
+        "backgroundColor": "transparent",
+        "fillStyle": "solid",
+        "strokeWidth": 2,
+        "strokeStyle": "solid",
+        "roughness": 1,
+        "opacity": 100,
+        "groupIds": [],
+        "frameId": null,
+        "index": "a1",
+        "roundness": {
+          "type": 3
+        },
+        "seed": 1652353941,
+        "version": 97,
+        "versionNonce": 1530392693,
+        "isDeleted": false,
+        "boundElements": [],
+        "updated": 1795187645871,
+        "link": null,
+        "locked": false
+      },
+      {
+        "id": "XhzCLE_e3EZ9mC-LNT5nq",
+        "type": "rectangle",
+        "x": 483,
+        "y": 194,
+        "width": 95,
+        "height": 180,
+        "angle": 0,
+        "strokeColor": "#1e1e1e",
+        "backgroundColor": "transparent",
+        "fillStyle": "solid",
+        "strokeWidth": 2,
+        "strokeStyle": "solid",
+        "roughness": 1,
+        "opacity": 100,
+        "groupIds": [],
+        "frameId": null,
+        "index": "a2",
+        "roundness": {
+          "type": 3
+        },
+        "seed": 1939528187,
+        "version": 118,
+        "versionNonce": 1197549339,
+        "isDeleted": false,
+        "boundElements": [],
+        "updated": 1795187647421,
+        "link": null,
+        "locked": false
+      },
+      {
+        "id": "ZTBaocidhga6Jee3wXqgn",
+        "type": "rectangle",
+        "x": 297,
+        "y": 464,
+        "width": 95,
+        "height": 180,
+        "angle": 0,
+        "strokeColor": "#1e1e1e",
+        "backgroundColor": "transparent",
+        "fillStyle": "solid",
+        "strokeWidth": 2,
+        "strokeStyle": "solid",
+        "roughness": 1,
+        "opacity": 100,
+        "groupIds": [],
+        "frameId": null,
+        "index": "a3",
+        "roundness": {
+          "type": 3
+        },
+        "seed": 1343775093,
+        "version": 146,
+        "versionNonce": 1470263285,
+        "isDeleted": false,
+        "boundElements": [],
+        "updated": 1795187648920,
+        "link": null,
+        "locked": false
+      },
+      {
+        "id": "9yYJpqVDq0jguxfTjSLY3",
+        "type": "rectangle",
+        "x": 503,
+        "y": 458,
+        "width": 95,
+        "height": 180,
+        "angle": 0,
+        "strokeColor": "#1e1e1e",
+        "backgroundColor": "transparent",
+        "fillStyle": "solid",
+        "strokeWidth": 2,
+        "strokeStyle": "solid",
+        "roughness": 1,
+        "opacity": 100,
+        "groupIds": [],
+        "frameId": null,
+        "index": "a4",
+        "roundness": {
+          "type": 3
+        },
+        "seed": 557777531,
+        "version": 169,
+        "versionNonce": 1684935899,
+        "isDeleted": false,
+        "boundElements": [],
+        "updated": 1795187650186,
+        "link": null,
+        "locked": false
+      }
+    ],
+    "appState": {
+      "gridSize": 20,
+      "gridStep": 5,
+      "gridModeEnabled": false,
+      "viewBackgroundColor": "#ffffff"
+    },
+    "files": {}
+  }
+}

@@ -1,0 +1,1 @@
+async function e(){throw Error(`UI 草图不提供 Mermaid 图表功能`)}var t={parseMermaidToExcalidraw:e};export{t as default,e as parseMermaidToExcalidraw};

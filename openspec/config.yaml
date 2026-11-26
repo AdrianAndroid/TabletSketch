@@ -1,0 +1,44 @@
+schema: spec-driven
+
+context: |
+  TabletSketch 是一个独立 macOS 应用，把手写板从「鼠标替代品」升级为压感草图工具。
+  - 目标设备：XP-Pen Deco 640（VID 0x28bd / PID 0x2904，有效区 160×90 mm，16:9，16384 级压感，8 个板载虚拟快捷键，2 个笔侧键）。
+  - 技术路线：只读 HID + 应用内虚拟笔光标；不做 KEXT / DriverKit / 系统级指针接管；不安装官方驱动依赖。
+  - 画布：Excalidraw 0.18.1 离线资源，复用现有 UI 草图素材库与 `.excalidraw` 文件格式。
+  - 输入：支持悬停、刚接触、下压三态；压力控制线宽/透明度，倾斜控制笔锋，橡皮和侧键可映射。
+  - 画布映射：默认 16:9，等比缩放 + 居中偏移；笔迹只落在画布矩形内，越界丢弃，不夹边。
+  - 输入仲裁：同一时刻只允许鼠标或手写板一个源写画布；手写板不抢系统鼠标。
+  - 数据：默认本地目录 ~/Pictures/TabletSketch/Sketches；草稿在 ~/Library/Application Support/TabletSketch；原子写入。
+  - 独立性：不修改 MacAppControlDeck，不共享 Bundle ID、TCC、端口、首选项域；只共享文件格式与资源。
+  - 文档与注释使用中文；代码标识符使用英文。
+  - 所有需求先建 OpenSpec 变更，再实现；不允许只改代码或文档而不留变更记录。
+
+rules:
+  proposal:
+    - 每个需求都必须有 proposal，写明 Why、What Changes、Capabilities、Impact 与非目标
+    - 不允许在未建立 OpenSpec 变更的情况下直接开始实现
+    - 必须写清是否影响 MacAppControlDeck；默认不允许影响
+  design:
+    - 涉及 HID 协议、画布映射、压感、权限、数据路径时，记录关键取舍、已知限制与失败回退
+    - 必须写清输入源仲裁和窗口失焦时的行为
+    - 必须写清不接管系统指针的边界
+  tasks:
+    - 任务必须可勾选，覆盖实现、验证与归档
+    - 归档时全部任务应已完成；未完成项必须写明原因
+    - 每个阶段必须有可独立关闭的开关或回退路径
+  spec:
+    - 能力名使用小写短横线，例如 pen-input、canvas-mapping、pen-first-ui
+    - 需求使用 SHALL / MUST / SHOULD，场景用 WHEN / THEN / AND
+    - 不得把未验证的预研结论写成已实现
+
+operations:
+  apply:
+    guidance:
+      - 先确认 proposal 与 spec delta，再开始实现
+      - 先做只读 HID PoC，再做 UI
+      - 每一阶段保持默认关闭或可回退
+  archive:
+    guidance:
+      - 归档到 openspec/changes/archive/YYYY-MM-DD-<change-id>/
+      - 同步更新 openspec/specs/<capability>/spec.md
+      - 归档后检查 README、Docs/plans 与 change-id 的反向链接

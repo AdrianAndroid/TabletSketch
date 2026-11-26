@@ -1,0 +1,30 @@
+# macOS
+.DS_Store
+
+# SwiftPM / Xcode
+.build/
+.build-*/
+BuildOutput/
+DerivedData/
+*.xcuserstate
+xcuserdata/
+*.xcworkspace/xcuserdata/
+*.xcodeproj/xcuserdata/
+*.xcarchive
+*.dSYM
+
+# Web 构建
+Web/sketch/node_modules/
+Web/sketch/dist/
+Web/sketch/.vite/
+
+# 发布产物
+*.dmg
+*.zip
+*.pkg
+*.app
+
+# 本地环境
+.env
+.env.*
+!.env.example

@@ -1,0 +1,166 @@
+{
+  "source": "https://github.com/excalidraw/excalidraw-libraries",
+  "license": "MIT",
+  "libraries": [
+    {
+      "file": "basic-ux-wireframing-elements.excalidrawlib",
+      "name": "Basic UX/wireframing elements",
+      "id": "4a2SdXxZddP",
+      "author": "gabi.macakova",
+      "description": "This library contains different variants of basic UX/wireframing elements such as buttons, text boxes, text areas, checkboxes, drop-down menus, image placeholders, etc. ",
+      "license": "MIT",
+      "homepage": "https://libraries.excalidraw.com/?theme=light&version=2#/library/4a2SdXxZddP",
+      "label": "基础 UX 线框"
+    },
+    {
+      "file": "lo-fi-wireframing-kit.excalidrawlib",
+      "name": "Lo-Fi Wireframing Kit",
+      "id": "2TfM7VW6nq0",
+      "author": "Aleksandra Lazovic",
+      "description": "A collection of Lo-Fi wireframing components.",
+      "license": "MIT",
+      "homepage": "https://libraries.excalidraw.com/?theme=light&version=2#/library/2TfM7VW6nq0",
+      "label": "Lo-Fi 线框套件"
+    },
+    {
+      "file": "web-kit.excalidrawlib",
+      "name": "Web Kit",
+      "id": "2BgGthBRWwg",
+      "author": "Sunit Shirke",
+      "description": "A collection of commonly used web components.",
+      "license": "MIT",
+      "homepage": "https://libraries.excalidraw.com/?theme=light&version=2#/library/2BgGthBRWwg",
+      "label": "Web 组件"
+    },
+    {
+      "file": "mobile-kit.excalidrawlib",
+      "name": "Mobile Kit",
+      "id": "7PMqpVob6wL",
+      "author": "Sunit Shirke",
+      "description": "A collection of commonly used mobile screens.",
+      "license": "MIT",
+      "homepage": "https://libraries.excalidraw.com/?theme=light&version=2#/library/7PMqpVob6wL",
+      "label": "Mobile 组件"
+    },
+    {
+      "file": "forms.excalidrawlib",
+      "name": "Forms",
+      "id": "4AutOE2P3k9",
+      "author": "NicolasGoudry@G.Script",
+      "description": "Collection of form components.",
+      "license": "MIT",
+      "homepage": "https://libraries.excalidraw.com/?theme=light&version=2#/library/4AutOE2P3k9",
+      "label": "表单"
+    },
+    {
+      "file": "html-input-elements.excalidrawlib",
+      "name": "HTML input elements",
+      "id": "9EEQWk95mxL",
+      "author": "marwinburesch",
+      "description": "Basic HTML input elements for app wireframes. Elements include types: button, number, date, checkbox :checked :indeterminate :not checked, toggle switch, radio, select and an actionbutton with a plus",
+      "license": "MIT",
+      "homepage": "https://libraries.excalidraw.com/?theme=light&version=2#/library/9EEQWk95mxL",
+      "label": "HTML 输入控件"
+    },
+    {
+      "file": "universal-ui-kit.excalidrawlib",
+      "name": "Universal UI kit",
+      "id": "91A5M5ZNhxV",
+      "author": "Manuel Ernesto Garcia",
+      "description": "Universal UI, UX kit for app or web",
+      "license": "MIT",
+      "homepage": "https://libraries.excalidraw.com/?theme=light&version=2#/library/91A5M5ZNhxV",
+      "label": "通用 UI Kit"
+    },
+    {
+      "file": "dropdowns.excalidrawlib",
+      "name": "Dropdowns",
+      "id": "KM3naTKRqB",
+      "author": "Arun",
+      "description": "Collection of dropdowns.",
+      "license": "MIT",
+      "homepage": "https://libraries.excalidraw.com/?theme=light&version=2#/library/KM3naTKRqB",
+      "label": "下拉菜单"
+    },
+    {
+      "file": "apple-devices-frames.excalidrawlib",
+      "name": "Apple Devices Frames",
+      "id": "9XVMoHrsPqn",
+      "author": "François Best",
+      "description": "Collection of size-accurate frames for Apple mobile devices (iPhone, iPad, Apple Watch).",
+      "license": "MIT",
+      "homepage": "https://libraries.excalidraw.com/?theme=light&version=2#/library/9XVMoHrsPqn",
+      "label": "Apple 设备框"
+    },
+    {
+      "file": "awesome-icons.excalidrawlib",
+      "name": "Awesome Icons",
+      "id": "AVm9HRgIGRV",
+      "author": "ferminrp",
+      "description": "A growing collection of do whatever you want icons.",
+      "license": "MIT",
+      "homepage": "https://libraries.excalidraw.com/?theme=light&version=2#/library/AVm9HRgIGRV",
+      "label": "图标"
+    },
+    {
+      "file": "basic-shapes.excalidrawlib",
+      "name": "Basic shapes",
+      "id": "4vcqDwlkYkX",
+      "author": "Pablo Gil Fernández",
+      "description": "Basic shapes for simple drawings.",
+      "license": "MIT",
+      "homepage": "https://libraries.excalidraw.com/?theme=light&version=2#/library/4vcqDwlkYkX",
+      "label": "基础形状"
+    },
+    {
+      "file": "post-it.excalidrawlib",
+      "name": "Sticky Notes",
+      "id": "1GackrBWvTI",
+      "author": "ferminrp",
+      "description": "Post its in every color for your design thinking sessions.",
+      "license": "MIT",
+      "homepage": "https://libraries.excalidraw.com/?theme=light&version=2#/library/1GackrBWvTI",
+      "label": "便签"
+    },
+    {
+      "file": "bubbles.excalidrawlib",
+      "name": "Bubbles",
+      "id": "2S7dChJEzpC",
+      "author": "Oscar Capraro",
+      "description": "A collection of simple speech and thought bubbles.",
+      "license": "MIT",
+      "homepage": "https://libraries.excalidraw.com/?theme=light&version=2#/library/2S7dChJEzpC",
+      "label": "对话气泡"
+    },
+    {
+      "file": "gadgets.excalidrawlib",
+      "name": "Gadgets",
+      "id": "8mFhaPGiMd6",
+      "author": "MorgeMoensch",
+      "description": "Collection of technical gadgets: Smartphone, MP3-Player, Smartwatch, Tablet, Laptop.",
+      "license": "MIT",
+      "homepage": "https://libraries.excalidraw.com/?theme=light&version=2#/library/8mFhaPGiMd6",
+      "label": "小工具"
+    },
+    {
+      "file": "software-architecture.excalidrawlib",
+      "name": "Software Architecture",
+      "id": "mzQjGLHnDi",
+      "author": "Youri Tjang",
+      "description": "Collection of software architecture components: microservice, database, cache, event bus or pipeline, documents or code, browser, and mobile device",
+      "license": "MIT",
+      "homepage": "https://libraries.excalidraw.com/?theme=light&version=2#/library/mzQjGLHnDi",
+      "label": "软件架构"
+    },
+    {
+      "file": "system-design.excalidrawlib",
+      "name": "System Design Components",
+      "id": "4SlkJRmBgDQ",
+      "author": "Rohan Pithadiya",
+      "description": "Components useful in interviews and elsewhere to build high-level system diagrams.",
+      "license": "MIT",
+      "homepage": "https://libraries.excalidraw.com/?theme=light&version=2#/library/4SlkJRmBgDQ",
+      "label": "系统设计"
+    }
+  ]
+}
