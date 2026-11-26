@@ -340,3 +340,42 @@ HID 状态通常先到。`preload` 缓存最后一帧，在 `ts:ready` 时补发
 2. `CGAssociateMouseAndMouseCursorPosition(false)` 冻结光标 + 应用内虚拟光标，窗口失焦时恢复。代价是冻结期间真鼠标也不能动。
 
 两者都要先改 R3 的安全边界，属新变更。
+
+---
+
+## 2026-11-27 · 今日归档（收尾）
+
+用户指示：今天先归档、提交、上传 GitHub，改天再完善功能。
+
+### 已完成
+
+1. 5 个变更全部移入 `openspec/changes/archive/2026-11-27-<change-id>/`：
+   `bootstrap-tablet-sketch`、`seize-pen-input`、`onboard-pad-visualizer`、`window-as-pad`、`map-onboard-keys`
+   - `onboard-pad-visualizer` 的方案已被 `window-as-pad` 取代，保留归档仅作历史记录，不要照它实现。
+2. `openspec/specs/` 补齐 7 个稳定能力规格：`pen-input`（5 个变更合并重写）、`canvas-mapping`、`pen-first-ui`、`sketch-document`、`app-settings`、`express-keys`、`app-lifecycle`。
+3. `openspec/specs/README.md` 更新为归档索引 + 归档记录表 + 已知未解决指针。
+
+### 下次开工的候选（按价值排序）
+
+| 优先级 | 事项 | 入口 | 代价 |
+|---|---|---|---|
+| 高 | 板载键不漏到前台应用：`hidutil` 把 8 个组合键改写成 F13–F20 | 新建 OpenSpec 变更 | 低，全局映射，真键盘一般无 F13–F20 |
+| 中 | 笔不出窗口：冻结系统光标 + 应用内虚拟光标，失焦恢复 | 新建 OpenSpec 变更，需改 R3 | 中，冻结期间真鼠标也不能动 |
+| 中 | `.app` 签名 + 自定图标 | `Scripts/make-app.sh` | 低，需要开发者证书 |
+| 低 | 多画板切换只改名不换内容 | `Web/sketch/src/tablet/Shell.jsx` | 低 |
+| 低 | 设置项只写不读 | `Web/app` 与 `Web/sketch/src/tablet/*` | 中 |
+| 低 | 字体仍从 `esm.sh` 拉，违反 R4.5 离线要求 | `Web/sketch` 与 CSP | 低，下载字体本地化 |
+
+### 一句话现状
+
+笔能画、能压感、圆圈跟随、只在手写区内；板载 8 键能识别并高亮。系统层还抢不到 page 1 / page 13 的独占，所以按键会漏、笔仍驱动系统光标——这两条是下一步的主战场。
+
+### 五秒复现
+
+```bash
+cd /Users/zhaojian/code/TabletSketch
+swift build -c release
+cd Web/sketch && npm run build && cd ../..
+Scripts/make-app.sh
+nohup Build/TabletSketch.app/Contents/MacOS/TabletSketch > /tmp/ts_app.log 2>&1 & disown
+```
