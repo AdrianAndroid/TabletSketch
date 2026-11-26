@@ -185,6 +185,48 @@ HID 状态通常先到。`preload` 缓存最后一帧，在 `ts:ready` 时补发
 
 1. 每个用户可见功能必须有内置打开入口（菜单栏或浮岛），不能只有快捷键。当前设置窗有两个入口：菜单栏 `⌘,` + 浮岛「菜单 → 设置…」。
 2. 需求先建 OpenSpec 变更，再动手。
-3. 手写板只读 HID，不接管系统指针，不装 KEXT。
+3. 手写板默认只读 HID；需要「笔只在本应用里生效」时，允许用标准 `kIOHIDOptionsTypeSeizeDevice` 独占（见 `openspec/changes/seize-pen-input`），仍然禁止 KEXT / DriverKit / 系统扩展 / 关 SIP / 全局 event tap / 厂商私有模式写入。
 
 改完别忘 `git push`。
+
+---
+
+## 2026-11-27 · 三条手感问题的处理（未验收）
+
+用户上手后提了三条，逐条处理如下。
+
+### 1. 手写板仍在操控系统鼠标
+
+**根因**：上一版的 seize 是假成功。代码先 `IOHIDManagerOpen(manager, kIOHIDOptionsTypeNone)` 打开，再补一次带 seize 的 Open —— 管理器一旦打开，第二次 Open 不会改变打开方式却返回 success。而且 `matching` 只指定了厂商接口（page 0xFF0A / usage 1），系统光标由同一物理设备的 Generic Desktop（page 1 / usage 2）和 Digitizer（page 13 / usage 2）接口驱动，锁厂商接口拦不住光标。
+
+**改法**：`matching` 只留 VID/PID → 一次拿到全部 3 个接口；只 Open 一次且直接带 seize；`reportReceived` 用 `sender` 区分接口。
+
+**已验证**：`ready` 行 `interfaces` 返回 `[{page:13,usage:2},{page:1,usage:2},{page:65290,usage:1}]`；第二进程 `--grab` 返回 `-536870203`（kIOReturnExclusiveAccess），不带 `--grab` 直接打不开 —— 排他成立。
+
+**副作用**：光标真的被锁死，所以界面必须自绘笔光标（`.ts-pen-cursor`），这部分此前已有。
+
+### 2. 笔悬停时没有圆圈指示
+
+**根因**：界面只从厂商通道取位置，而厂商通道基本只在笔接触后才出数据；「笔在感应区内」是 Digitizer 接口的职责。之前 `reportReceived` 把非厂商接口的报告全丢了。
+
+**改法**：注册 Digitizer 接口（page 0x0D usage 2）的解析。它的 descriptor 是 `Report ID 7`：1 字节状态位（Tip / Barrel / In Range / Invert）+ X(16) + Y(16) + Pressure(16) + TiltX(8) + TiltY(8)，坐标范围 0..15999 / 0..8999（正好是厂商通道的一半，解析时 ×2 对齐）。两路数据做了融合：Digitizer 在 500ms 内有上报就以它为位置/压力来源，厂商通道只吸收侧键和橡皮状态，避免两路坐标打架。
+
+**另加**：250ms 无报文看门狗 → 补发 `leave`，否则笔抬离后圆圈会一直挂在屏幕上（前端 `tablet:penpos` 收到 `ph: "leave"` 时清空）。
+
+**未验证**：以真实笔悬停为准。日志里若有 `{"t":"digitizer","first":true,...}` 说明接口确实在报。
+
+### 3. 必须使劲压才出墨
+
+**根因**：状态机起笔条件是 `tipDown && pressure >= 0.012`。轻触的最初几毫秒压力常常是 0，被当成悬停丢掉，用户体感就是「必须先压一下」。
+
+**改法**：`shouldStart = tipDown || pressure >= pressureOn` —— 以硬件 tip 位为主，压力只决定粗细；起笔那一帧压力垫 `max(pressure, 0.12)` 的可见下限。
+
+**未验证**：需实机轻触确认。
+
+### 接下来要做的
+
+- [ ] 三条实测验收；若仍无 hover，开 `--dump` 看 Digitizer 是否真的在悬停时上报，并核对状态位定义（当前按 Tip=bit0 / Invert=bit3 猜）
+- [ ] 板载虚拟键 1–8 未解析，只做了两个侧键
+- [ ] 多画板切换只改名不换内容
+- [ ] 素材库点进详情后插入未实测
+- [ ] 本轮改动需要提交

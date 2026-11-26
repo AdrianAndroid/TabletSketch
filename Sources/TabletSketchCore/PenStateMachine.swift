@@ -82,7 +82,10 @@ public struct PenStateMachine: Sendable {
 
         switch phase {
         case .idle, .hover:
-            let shouldStart = tipDown && pressure >= config.pressureOn
+            // 硬件的 tip 位才是"接触"的真相，压力只决定粗细。
+            // 之前要求 pressure >= 0.012，轻触前几毫秒会被当成悬停丢掉，
+            // 用户体感就是"必须先使劲压一下"。
+            let shouldStart = tipDown || pressure >= config.pressureOn
             if shouldStart {
                 phase = .drawing
                 strokeStartTime = time

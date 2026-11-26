@@ -193,6 +193,12 @@ function applyHidEvent(payload) {
 
   if (payload.t !== "pen") return;
 
+  // 笔离开感应区：收起光标圆圈，别让它赖在屏幕上
+  if (payload.ph === "leave") {
+    window.dispatchEvent(new CustomEvent("tablet:penpos", { detail: null }));
+    return;
+  }
+
   const target = canvasEl();
   if (!target) return;
   const rect = target.getBoundingClientRect();
