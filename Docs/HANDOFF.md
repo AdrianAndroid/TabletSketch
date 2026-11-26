@@ -230,3 +230,25 @@ HID 状态通常先到。`preload` 缓存最后一帧，在 `ts:ready` 时补发
 - [ ] 多画板切换只改名不换内容
 - [ ] 素材库点进详情后插入未实测
 - [ ] 本轮改动需要提交
+
+---
+
+## 2026-11-27 深夜 · 四个叠加的根因（已修，待实测）
+
+前三轮"改了没效果"不是没改，是改动根本没进运行中的包。按时间顺序挖出四层：
+
+1. **前端产物从来没更新**。`Scripts/make-app.sh` 拷贝的是 `Resources/Sketch`，而 `npm run build` 的产物恰好也直接输出到 `Resources/Sketch`（vite `outDir`），看起来一致，但打包时机与构建时机经常错位，app 里跑的一直是旧包。现在 `make-app.sh` 会打印实际打进去的 `index-*.js` 文件名，一眼能看出是不是刚构建的。
+2. **采集器 stdout 全缓冲**。spawn 成子进程后 stdout 是管道，Swift 默认全缓冲，一行都到不了主进程。已在 `main.swift` 开头 `setvbuf(stdout, nil, _IONBF, 0)`。这一条最致命：**在 App 里，真实笔数据从来没通过一次**，之前所有演示都是注入的假数据。
+3. **Digitizer 报文首字节是 report ID**。被当成状态位解析，坐标算成天文数字再被 clamp 到角落。已 `dropFirst()`。
+4. **默认工具是"选择"**。`pointerdown` 落在画布上但没有工具接收，既不画也不选。现在 `installTabletSketch` 初始化后自动切 `freedraw`，`began` 时再兜底切一次。
+
+顺带修的：
+- `chrome.css` 里 `.ts-pen-cursor` 样式整段丢失 → 补回（14pt 空环 / 落笔 8pt 实心）。
+- 光标渲染不再依赖 `grabbed` 事件（跨 world 事件容易在监听注册前发出），有坐标就画。
+- 自绘 UI 的点击原来派发 `MouseEvent`，React 的 `onPointerDown` 收不到 → 改成 `PointerEvent`。
+- 失焦不再释放独占（只退出时释放），切窗口不会把板子还回去。
+- `body.tablet-mode` 由页面自己加，不再只依赖 preload 的跨 world 事件。
+
+**验证方式（不需要真笔）**：`TS_FAKE=1` 启动会注入一条正弦笔迹，应出现"手写笔工具高亮 + 一条带粗细变化的黑线 + 跟随圆圈"。
+
+**当前界面现状**：顶部自绘条 + 右侧单列工具岛（设计稿是双排 15 格，还没对齐）+ 右上"手写板已连接"。原生 Excalidraw chrome 已隐藏（`.App-menu_top` computed display = none）。

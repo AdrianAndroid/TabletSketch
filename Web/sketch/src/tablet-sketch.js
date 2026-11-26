@@ -145,6 +145,7 @@ function makePointerEvent(type, x, y, pressure) {
 function pushSamples(samples) {
   const target = canvasEl();
   if (!target) return;
+  if (payload.ph === "began") ensureDrawTool();
 
   for (const sample of samples) {
     const [x, y, pressure, phase] = sample;
@@ -172,6 +173,17 @@ function isChrome(el) {
   return !!(el && el.closest && el.closest("[data-ts-ui]"));
 }
 
+function ensureDrawTool() {
+  try {
+    const state = api.getAppState();
+    if (state.activeTool?.type === "freedraw") return;
+    api.setActiveTool({ type: "freedraw" });
+    console.log("[tool] 已切到手写笔");
+  } catch (error) {
+    console.warn("[tool] 切换失败", error);
+  }
+}
+
 function applyHidEvent(payload) {
   if (!payload) return;
 
@@ -193,6 +205,7 @@ function applyHidEvent(payload) {
 
   if (payload.t !== "pen") return;
 
+
   // 笔离开感应区：收起光标圆圈，别让它赖在屏幕上
   if (payload.ph === "leave") {
     window.dispatchEvent(new CustomEvent("tablet:penpos", { detail: null }));
@@ -201,6 +214,7 @@ function applyHidEvent(payload) {
 
   const target = canvasEl();
   if (!target) return;
+  if (payload.ph === "began") ensureDrawTool();
   const rect = target.getBoundingClientRect();
   const x = rect.left + payload.x * rect.width;
   const y = rect.top + payload.y * rect.height;
@@ -221,16 +235,10 @@ function applyHidEvent(payload) {
   // 落在自绘 UI 上：转成一次点击
   if (isChrome(hit)) {
     if (payload.ph === "began") {
-      hit.dispatchEvent(
-        new MouseEvent("pointerdown", { bubbles: true, cancelable: true, clientX: x, clientY: y })
-      );
+      hit.dispatchEvent(makePointerEvent("pointerdown", x, y, 0.5));
     } else if (payload.ph === "ended") {
-      hit.dispatchEvent(
-        new MouseEvent("pointerup", { bubbles: true, cancelable: true, clientX: x, clientY: y })
-      );
-      hit.dispatchEvent(
-        new MouseEvent("click", { bubbles: true, cancelable: true, clientX: x, clientY: y })
-      );
+      hit.dispatchEvent(makePointerEvent("pointerup", x, y, 0));
+      hit.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true, clientX: x, clientY: y }));
     }
     return;
   }
@@ -328,6 +336,8 @@ function insertLibraryItem(itemId) {
 function installTabletSketch(excalidrawApi) {
   api = excalidrawApi;
   patchPointerCapture();
+  // 手写板应用一打开就该是画笔，不用先去点工具
+  setTimeout(() => ensureDrawTool(), 400);
 
   const bridge = {
     // ---- 工具 ----
@@ -561,6 +571,10 @@ function installTabletSketch(excalidrawApi) {
   document.addEventListener("ts:chrome", (event) => {
     bridge.setTabletChrome(event.detail !== false);
   });
+
+  // 跨 world 事件有可能在监听注册前就发出去了，这里直接切一次，
+  // 保证原生 chrome 一定被藏起来、自绘界面一定出来。
+  document.body.classList.add("tablet-mode");
 
   document.dispatchEvent(new CustomEvent("ts:ready"));
   post("tabletReady");

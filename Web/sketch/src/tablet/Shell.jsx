@@ -481,7 +481,7 @@ export function TabletShell({ onOpenSettings }) {
         />
       ) : null}
 
-      {grabbed && penPos ? (
+      {penPos ? (
         <div
           className={`ts-pen-cursor${penPos.down ? " is-down" : ""}`}
           style={{ transform: `translate3d(${penPos.x}px, ${penPos.y}px, 0)` }}

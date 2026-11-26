@@ -32,6 +32,7 @@ final class HIDReader {
     private var digitizerDevice: IOHIDDevice?
     private var lastDigitizerAt: TimeInterval = 0
     private var loggedFirstDigitizer = false
+    private var lastFlags: UInt8 = 0xFF
     /// 笔抬离后有的固件就彻底不报了，没有这个看门狗，圆圈会一直挂在屏幕上。
     private var watchdog: DispatchSourceTimer?
     private var lastKeys: (barrel1: Bool, barrel2: Bool, eraser: Bool) = (false, false, false)
@@ -346,15 +347,17 @@ final class HIDReader {
     /// 之后依次是 X(16) Y(16) Pressure(16) TiltX(8) TiltY(8)。
     /// 坐标逻辑范围 0..15999 / 0..8999，是厂商通道（31998/17998）的一半。
     private func handleDigitizer(reportID: UInt32, bytes: [UInt8]) {
-        guard bytes.count >= 9 else { return }
+        guard bytes.count >= 10 else { return }
         if dumpRaw {
             Emit.line(["t": "raw", "src": "digitizer", "id": Int(reportID), "bytes": bytes.map { Int($0) }])
         }
 
-        let flags = bytes[0]
-        let x = UInt32(bytes[1]) | (UInt32(bytes[2]) << 8)
-        let y = UInt32(bytes[3]) | (UInt32(bytes[4]) << 8)
-        let rawPressure = UInt16(bytes[5]) | (UInt16(bytes[6]) << 8)
+        // 首字节是 report ID（0x07），后续 9 字节才是 descriptor 描述的内容。
+        let body = Array(bytes.dropFirst())
+        let flags = body[0]
+        let x = UInt32(body[1]) | (UInt32(body[2]) << 8)
+        let y = UInt32(body[3]) | (UInt32(body[4]) << 8)
+        let rawPressure = UInt16(body[5]) | (UInt16(body[6]) << 8)
 
         // 位定义在实机上按 "Tip / Barrel / In Range / Invert" 排；
         // 只要有一位非零就认为笔在感应区内，宁可多报悬停也不要漏。
@@ -363,6 +366,10 @@ final class HIDReader {
         let invert = (flags & 0x08) != 0
 
         lastDigitizerAt = ProcessInfo.processInfo.systemUptime
+        if lastFlags != flags {
+            lastFlags = flags
+            Emit.line(["t": "dflags", "v": Int(flags), "p": Int(rawPressure)])
+        }
         if !loggedFirstDigitizer {
             loggedFirstDigitizer = true
             Emit.line(["t": "digitizer", "first": true, "flags": Int(flags), "x": Int(x), "y": Int(y), "p": Int(rawPressure)])
@@ -378,8 +385,8 @@ final class HIDReader {
             x: min(x * 2, PenReport.maxX),
             y: min(y * 2, PenReport.maxY),
             pressure: rawPressure,
-            tiltX: Int8(bitPattern: bytes[7]),
-            tiltY: Int8(bitPattern: bytes[8])
+            tiltX: Int8(bitPattern: body[7]),
+            tiltY: Int8(bitPattern: body[8])
         )
         emitPen(pen)
     }

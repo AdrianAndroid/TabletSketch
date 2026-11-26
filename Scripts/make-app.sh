@@ -34,4 +34,5 @@ cp "$BIN" "$RES/bin/tablet-sketch-hid"
 chmod +x "$RES/bin/tablet-sketch-hid"
 
 # 去掉默认的 Electron 图标资源目录里多余的没用的东西不管，保持原样
+echo "前端产物: $(ls -t "$ROOT/Resources/Sketch/assets"/index-*.js | head -1 | xargs basename)"
 echo "已生成 $APP"

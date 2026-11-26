@@ -1000,3 +1000,25 @@ body.tablet-mode {
     transform: translate(-50%, 0);
   }
 }
+
+/* 独占之后系统指针不再跟笔，这个圆圈就是唯一的"笔在哪"提示 */
+.ts-pen-cursor {
+  position: fixed;
+  left: 0;
+  top: 0;
+  width: 14px;
+  height: 14px;
+  margin: -7px 0 0 -7px;
+  border: 1.5px solid #4b3ff0;
+  border-radius: 50%;
+  pointer-events: none;
+  z-index: 9000;
+  transition: width 90ms ease, height 90ms ease, margin 90ms ease;
+}
+
+.ts-pen-cursor.is-down {
+  width: 8px;
+  height: 8px;
+  margin: -4px 0 0 -4px;
+  background: #4b3ff0;
+}

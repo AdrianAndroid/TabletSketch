@@ -38,8 +38,13 @@ document.addEventListener("ts:log", (event) => {
   ipcRenderer.send("ts:log", event.detail);
 });
 
+let lastPenLog = 0;
 ipcRenderer.on("pen:event", (_event, payload) => {
   if (payload?.t === "grab") lastGrab = !!payload.ok;
+  if (payload?.t === "pen" && Date.now() - lastPenLog > 1000) {
+    lastPenLog = Date.now();
+    emit("ts:log", `[preload] 收到笔事件 ${payload.ph}`);
+  }
   emit("ts:hid", payload);
 });
 

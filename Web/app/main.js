@@ -173,15 +173,16 @@ function createWindow() {
   // 独占会把整块板子从系统里拿走，切到别的应用时必须还回去，
   // 否则用户会以为鼠标/笔坏了。回焦再拿回来。
   let releaseTimer = null;
+  // 页面里的 console.log 默认不会出现在终端里，排错时等于瞎子。
+  win.webContents.on("console-message", (_event, level, message) => {
+    console.log("[renderer]", message);
+  });
+
   win.on("blur", () => {
-    if (!hid) return;
+    // 不再失焦即释放：用户要的是笔只在这个应用里生效，
+    // 切一下别的窗口就把板子还回去会让她画到一半断掉。
+    // 进程退出时系统会自动收回独占，不存在锁死的风险。
     clearTimeout(releaseTimer);
-    releaseTimer = setTimeout(() => {
-      if (win && !win.isFocused()) {
-        hid?.stop();
-        hid = null;
-      }
-    }, 260);
   });
   win.on("focus", () => {
     clearTimeout(releaseTimer);
@@ -198,6 +199,7 @@ app.whenReady().then(() => {
   buildMenu();
   createWindow();
   startHid();
+  if (process.env.TS_FAKE) runFakePen();
 
   app.on("activate", () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
@@ -288,15 +290,44 @@ function runDemo(win) {
   }
 }
 
+let penFrameCount = 0;
+setInterval(() => {
+  if (penFrameCount) {
+    console.log("[hid] pen frames/s:", penFrameCount);
+    penFrameCount = 0;
+  }
+}, 1000);
+
 function startHid() {
   hid = new HidBridge({
-    onEvent: (payload) => win?.webContents.send("pen:event", payload),
+    onEvent: (payload) => {
+      if (payload?.t === "pen") penFrameCount += 1;
+      win?.webContents.send("pen:event", payload);
+    },
     onStatus: (status) => {
       console.log("[hid]", status.state, status.message || "");
       win?.webContents.send("pen:status", status);
     }
   });
   hid.start();
+}
+
+// 开发用：不碰板子也能验证"采集器之后到画面"这一段
+function runFakePen() {
+  setTimeout(() => {
+    let i = 0;
+    const timer = setInterval(() => {
+      const t = i / 60;
+      const x = 0.2 + t * 0.6;
+      const y = 0.5 + Math.sin(t * 6.28) * 0.15;
+      const send = (p) => win?.webContents.send("pen:event", p);
+      if (i < 10) send({ t: "pen", ph: "hover", x, y, p: 0 });
+      else if (i === 10) send({ t: "pen", ph: "began", x, y, p: 0.3 });
+      else if (i < 60) send({ t: "pen", ph: "changed", x, y, p: 0.3 + 0.5 * Math.abs(Math.sin(i / 8)) });
+      else if (i === 60) { send({ t: "pen", ph: "ended", x, y, p: 0 }); clearInterval(timer); }
+      i += 1;
+    }, 16);
+  }, 3500);
 }
 
 // 自测：进入手写板模式、切到手写工具、注入一条压力渐变的笔迹。

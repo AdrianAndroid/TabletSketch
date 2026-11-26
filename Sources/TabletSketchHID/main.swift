@@ -1,5 +1,9 @@
 import Foundation
 
+// stdout 接到管道时默认是全缓冲，一行几百字节的数据会一直积在缓冲区里，
+// 上层（Electron）一行都收不到。必须在写任何输出之前关掉缓冲。
+setvbuf(stdout, nil, _IONBF, 0)
+
 // tablet-sketch-hid：只读 HID 采集器。
 //
 // 用法：
