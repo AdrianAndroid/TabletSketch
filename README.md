@@ -1,16 +1,29 @@
 # TabletSketch
 
-面向 **XP-Pen Deco 640** 的独立 macOS 压感草图应用，基于 Excalidraw 离线画板，目标是把手写板从「鼠标替代品」变成真正可用的绘图工具。
+面向 **XP-Pen Deco 640** 的独立 macOS 压感草图应用。
 
-> **当前状态：仓库已初始化、OpenSpec 已建立、资源已迁移；尚未创建可运行 App。**
-> 下一步开发请先读 `AGENTS.md`、`openspec/changes/bootstrap-tablet-sketch/proposal.md` 与 `design.md`。
+窗口本身就是板面：上方一排是手写板 8 个板载键的按键带，下方是 16:9 手写区。笔的坐标只映射到手写区，悬停有跟随圆圈，轻触即出墨，压力控制粗细。
 
-## 为什么单独建仓库
+![TabletSketch 主界面](Docs/images/app-window.png)
 
-- 不影响现有 `MacAppControlDeck` 的 UI 草图功能。
-- 手写板输入、压感、画布锁定、板载键都是高耦合改动，放在独立仓库里迭代更安全。
-- 资源、素材库和 `.excalidraw` 文件格式与主项目保持兼容，未来可择机合并，也可独立发布。
-- 独立仓库可以先做 PoC，不必为了实验性功能改主项目的生命周期、设置和打包流程。
+*上图是真机实拍：笔尖在板上走的每一笔，粗细都来自压力值。右上角绿点是板子连接状态，右侧是自绘浮岛工具面板。*
+
+## 它现在能做什么
+
+| 能力 | 状态 |
+|---|---|
+| 笔悬停圆圈跟随 | ✅ 悬停 14pt 空心环，落笔收成 8pt 实心 |
+| 轻触出墨 | ✅ 压力下限 0.35，不需要使劲压 |
+| 压感控制粗细 | ✅ 0–16383 级压力，整形后映射到线宽 |
+| 笔迹限制在手写区 | ✅ 坐标只映射到 `.ts-stage`，手指不会画出界 |
+| 板载 8 键识别 | ✅ 按键带上对应位置亮起 |
+| 窗口即板面 | ✅ 上按键带 64pt + 下手写区，比例按真机 |
+| 径向菜单 / 浮岛 / 素材库 | ✅ 自绘界面，不依赖 Excalidraw 原生 chrome |
+| 画板存取 | ✅ `.excalidraw` 文件，⌘S 静默保存 |
+
+![板载键按键带](Docs/images/key-band.png)
+
+*按键带常驻显示 1–8，按下时对应位置亮 26pt 主色圆，180ms 后消失。*
 
 ## 目标设备
 
@@ -19,108 +32,114 @@
 - 有效区：`160 × 90 mm`，原生 **16:9**
 - 压感：16384 级（`0..16383`）
 - 板载虚拟快捷键：**8 个**
-- 笔侧键：**2 个 P01 按键**，均可自定义
-- 倾斜：支持
-- 连接：USB HID；不需要 KEXT、DriverKit、关闭 SIP
+- 笔侧键：**2 个**，可自定义
+- 连接：USB HID；不需要 KEXT、DriverKit，也不需要关闭 SIP
 
-完整协议与实测记录见 `Docs/research/2026-11-26-deco640-driver-research.md`。
+本项目**只服务这一台板子**：VID/PID、报文布局、坐标范围、按键数量都按真机硬编码，不做型号探测和多设备兼容（见 `AGENTS.md` R9）。要接第二台设备，属于新需求。
 
-## 产品定位
+## 为什么单独建仓库
 
-第一版只做「本机 Sketch」，不做系统级手写板驱动：
+- 不影响既有 `MacAppControlDeck` 的 UI 草图功能。
+- 手写板输入、压感、画布锁定、板载键都是高耦合改动，放在独立仓库里迭代更安全。
+- 复用宿主项目的 `.excalidraw` 文件格式，未来可择机合并，也可独立发布。
 
-- 画布优先的压感画板
-- 笔压控制线宽/透明度
-- 倾斜控制笔锋
-- 笔侧键切橡皮/呼出径向菜单
-- 8 个板载键映射常用动作
-- 16:9 等比例画布，笔迹限制在画布矩形内
-- 鼠标与手写板可切换，同一时刻只有一个输入源写画布
+## 怎么跑起来
 
-**不做**：系统全局指针接管、KEXT、DriverKit、OCR 手写识别、云同步、多人协作、首版支持其他型号手写板。
+依赖：macOS、Xcode Command Line Tools（`swift`）、Node.js 18+。
+
+```bash
+swift build -c release                 # 编译 Swift HID 采集器
+(cd Web/sketch && npm install && npm run build)   # 构建前端到 Resources/Sketch
+Scripts/make-app.sh                    # 组装 Build/TabletSketch.app
+open Build/TabletSketch.app
+```
+
+首次运行需要给 App 授权「输入监控」（系统设置 → 隐私与安全性 → 输入监控）。
+
+调试开关：
+
+| 环境变量 | 作用 |
+|---|---|
+| `TS_FAKE=1` | 注入正弦笔迹，没有板子也能看界面 |
+| `TS_DUMP=1` | 把 HID 原始报文打到日志 |
+| `TS_NO_GRAB=1` | 关闭独占尝试 |
+| `TS_DEV=1` | 打开 DevTools |
+
+## 架构
+
+```text
+Electron 主进程 (Web/app/main.js)
+  ├── spawn → tablet-sketch-hid（Swift，HID 采集）
+  │     ├── Digitizer 接口 → 笔坐标 / 压力 / 倾斜 / 悬停
+  │     └── Generic Desktop 接口 → 板载 8 键（Report ID 6 键盘报告）
+  └── BrowserWindow → Excalidraw 画板 (Web/sketch)
+        ├── tablet-sketch.js  笔事件路由、压力整形、工具切换
+        └── tablet/*          自绘 chrome：按键带、浮岛、径向菜单、设置
+```
+
+- 前端基于 Excalidraw 0.18.1（`Web/vendor/excalidraw`，submodule，未改源码），原生 UI 由 CSS 隐藏，交互全部自绘。
+- 打包产物 `Build/TabletSketch.app` 为手工组装，**未签名**。
+- 画板默认存到 `~/Pictures/TabletSketch/Sketches/`。
 
 ## 仓库结构
 
 ```text
 TabletSketch/
-├── AGENTS.md                       # 开发规则
-├── README.md
-├── LICENSE                         # GPL-3.0，沿用主项目
-├── THIRD_PARTY_NOTICES.md          # Excalidraw / 字体 / 素材库许可
-├── openspec/
-│   ├── config.yaml                 # OpenSpec 项目上下文与规则
-│   ├── specs/                      # 归档后的稳定能力规格（当前为空）
-│   └── changes/
-│       └── bootstrap-tablet-sketch/
-│           ├── proposal.md         # 立项提案
-│           ├── design.md           # 架构与关键取舍
-│           ├── tasks.md            # 可执行任务清单
-│           └── specs/              # 首次实现的能力 delta
-├── Docs/
-│   ├── research/                   # Deco 640 预研
-│   ├── architecture/               # 资源地图与工程结构建议
-│   ├── plans/                      # 开发启动说明
-│   └── legacy/                     # 主项目 UI 草图历史资料
-├── Resources/
-│   └── Sketch/                     # 离线 Excalidraw 构建产物 + 素材库
+├── AGENTS.md                  # 开发规则（R0–R9）
+├── Sources/
+│   ├── TabletSketchHID/       # Swift HID 采集器可执行文件
+│   └── TabletSketchCore/      # 报文解析、笔状态机
 ├── Web/
-│   └── sketch/                     # Excalidraw Web 包装层源码（不含 node_modules）
-├── Reference/
-│   └── SketchModule/               # 主项目 Sketch Swift 源码，仅参考，不参与编译
-└── Tools/
-    └── DecoProbe.swift             # 只读 HID 探针
+│   ├── app/                   # Electron 外壳、preload、HID 桥
+│   ├── sketch/                # 前端包装层源码
+│   └── vendor/excalidraw/     # Excalidraw 0.18.1 submodule
+├── Resources/Sketch/          # 前端构建产物（由 vite 输出）
+├── Scripts/make-app.sh        # 组装 .app
+├── openspec/
+│   ├── specs/                 # 稳定能力规格（当前实现行为）
+│   └── changes/archive/       # 已完成变更
+├── Docs/
+│   ├── HANDOFF.md             # 交接文档：做过什么、还剩什么、踩过哪些坑
+│   ├── research/              # Deco 640 协议预研
+│   └── images/                # README 配图
+└── Tools/DecoProbe.swift      # 只读 HID 探针
 ```
-
-## 已迁移资源
-
-| 资源 | 来源 | 说明 |
-|---|---|---|
-| `Resources/Sketch` | 主项目 `Modules/Sketch/Resources/Sketch` | 102 个文件，约 5.7 MB；Excalidraw 0.18.1 离线包、25 个字体、16 组素材库 |
-| `Web/sketch` | 主项目 `Web/sketch` | 28 个文件，约 2.5 MB；Vite/React 包装层源码，已排除 `node_modules` |
-| `Reference/SketchModule` | 主项目 `Modules/Sketch` | 9 个 Swift 文件；仅作实现参考，依赖主项目类型，不能直接编译 |
-| `Docs/legacy/2026-11-20-sketch-module` | 主项目归档 | UI 草图模块的 SUMMARY、JSON、素材库说明与验收截图 |
-| `Docs/research/2026-11-26-deco640-driver-research.md` | 主项目预研 | HID 通道、协议、按键、画布冲突的完整调研 |
-| `Tools/DecoProbe.swift` | 主项目 `Tools` | 只读 HID 探针，可作为输入层 PoC 起点 |
-
-素材库为 Excalidraw 官方素材库，MIT License；字体为 SIL Open Font License 1.1；详见 `THIRD_PARTY_NOTICES.md`。
 
 ## OpenSpec 工作流
 
-本项目所有需求都必须先建立变更，再开始实现：
+任何需求先建变更，再动手：
 
 ```text
-openspec/changes/<change-id>/
-  proposal.md
-  design.md        # 涉及架构/数据/权限时
-  tasks.md         # 多步实现时
-  specs/<capability>/spec.md
-```
-
-完成后归档到：
-
-```text
+openspec/changes/<change-id>/     proposal.md / design.md / tasks.md / specs/<capability>/spec.md
+        ↓ 完成后
 openspec/changes/archive/YYYY-MM-DD-<change-id>/
+        ↓ 同步
+openspec/specs/<capability>/spec.md
 ```
 
-并同步更新 `openspec/specs/<capability>/spec.md`。
+已归档 5 个变更，稳定规格 7 份：`pen-input`、`canvas-mapping`、`pen-first-ui`、`sketch-document`、`app-settings`、`express-keys`、`app-lifecycle`。索引见 `openspec/specs/README.md`。
 
-首个变更：`bootstrap-tablet-sketch`。开发前先读它的 `proposal.md`、`design.md` 和 `tasks.md`。
+## 已知限制
 
-## 开发准备
+这些是实现边界，不是 bug 列表，写在这里免得误解：
 
-1. 读 `AGENTS.md`，确认独立仓库、HID 只读、虚拟笔光标、不接管系统指针等约束。
-2. 读 `openspec/changes/bootstrap-tablet-sketch/design.md`，确认输入层、画布层、UI 层、存储层的边界。
-3. 用 `Tools/DecoProbe.swift` 做设备探针，确认本机仍能读到 C 通道。
-4. 先做 PoC：只读 HID + 压感线宽；通过后再铺 UI。
-5. `Web/sketch` 需要重新构建时，先 `npm install`，再按原项目 Vite 流程构建到 `Resources/Sketch`。
+1. **板载键会漏到前台应用**。这 8 个键在固件层就是真键盘快捷键，切到浏览器按 7 号键，浏览器也会撤销。
+2. **笔仍然驱动系统光标**。Digitizer 与 Generic Desktop 接口的独占在用户态始终返回 `kIOReturnExclusiveAccess`，系统内核 HID 驱动先占。
+3. `.app` 未签名，首次打开需要右键 → 打开。
+4. 字体仍从 CDN 拉取，与「完全离线」目标有差距。
+
+第 1、2 条的解法与代价见 `Docs/HANDOFF.md` 末尾。
 
 ## 路线图
 
-- **P0**：独立窗口、只读 HID、压感/倾斜、橡皮、16:9 画布、笔侧键、8 键基础映射
-- **P1**：画布优先布局、落笔隐藏 chrome、径向菜单、左手模式、画布锁定
-- **P2**：压感曲线预设、掌压过滤、平滑/预测、更多画布比例、模板
-- **P3**：可选合并回 MacAppControlDeck，或独立发布
+- **P0 / P1 已完成**：只读 HID、压感、轻触起笔、16:9 画布、笔迹限界、板载键、径向菜单、浮岛、窗口即板面
+- **下一步**：板载键改写成 F13–F20 防外泄、冻结系统光标、签名与图标
+- **更远**：压感曲线预设、掌压过滤、平滑与预测、模板
+
+## 不做
+
+系统全局指针接管、KEXT、DriverKit、OCR 手写识别、云同步、多人协作、支持其他型号手写板。
 
 ## 许可
 
-本项目沿用主项目的 GPL-3.0（见 `LICENSE`）。Excalidraw、React、Vite、字体与素材库的许可见 `THIRD_PARTY_NOTICES.md`。
+沿用 GPL-3.0（见 `LICENSE`）。Excalidraw、React、Vite、字体与素材库的许可见 `THIRD_PARTY_NOTICES.md`。
