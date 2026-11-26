@@ -33,6 +33,7 @@ final class HIDReader {
     private var lastDigitizerAt: TimeInterval = 0
     private var loggedFirstDigitizer = false
     private var lastFlags: UInt8 = 0xFF
+    private var loggedAux = false
     /// 笔抬离后有的固件就彻底不报了，没有这个看门狗，圆圈会一直挂在屏幕上。
     private var watchdog: DispatchSourceTimer?
     private var lastKeys: (barrel1: Bool, barrel2: Bool, eraser: Bool) = (false, false, false)
@@ -295,6 +296,11 @@ final class HIDReader {
 
         // 按键报告：Report ID 3
         if let aux = AuxReportParser.parse(bytes) {
+            // 位图偏移是逆向推测的，第一帧原始字节留个痕，方便按真机校准
+            if !loggedAux {
+                loggedAux = true
+                Emit.line(["t": "auxraw", "bytes": bytes.map { Int($0) }])
+            }
             emitAux(aux)
             return
         }

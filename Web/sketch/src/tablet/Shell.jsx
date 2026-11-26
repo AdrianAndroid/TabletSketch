@@ -5,6 +5,7 @@ import { RadialMenu } from "./RadialMenu";
 import { StyleBubble } from "./StyleBubble";
 import { SettingsWindow } from "./settings/SettingsWindow";
 import { saveScene, openScene } from "./scene-files";
+import { PadMap } from "./PadMap.jsx";
 import "./chrome.css";
 
 /** 浮岛默认槽位：前 8 格与板载键 1–8 一一对应。 */
@@ -59,6 +60,8 @@ export function TabletShell({ onOpenSettings }) {
   // 独占打开成功后系统不再画指针，光标由我们自己画
   const [grabbed, setGrabbed] = useState(false);
   const [penPos, setPenPos] = useState(null);
+  const [penN, setPenN] = useState(null);
+  const [padFlash, setPadFlash] = useState(null);
   const [boards, setBoards] = useState([]);
   const [activeBoard, setActiveBoard] = useState(null);
   const dragRef = useRef(null);
@@ -99,8 +102,9 @@ export function TabletShell({ onOpenSettings }) {
         if (keys.includes(2)) applyTool("eraser");
         return;
       }
-      // 板载键：1–8 对应浮岛前 8 格
+      // 板载键：1–8 对应浮岛前 8 格，同时点亮板面示意图上对应的位置
       for (const index of keys) {
+        setPadFlash({ index, seq: Date.now() + index });
         const slot = visible[index];
         if (slot) activate(slot);
       }
@@ -141,7 +145,19 @@ export function TabletShell({ onOpenSettings }) {
 
   // 笔尖位置与独占状态
   useEffect(() => {
-    const onPos = (event) => setPenPos(event.detail);
+    const onPos = (event) => {
+      const detail = event.detail;
+      setPenPos(detail);
+      setPenN(
+        detail
+          ? {
+              nx: detail.nx ?? 0,
+              ny: detail.ny ?? 0,
+              down: !!detail.down
+            }
+          : null
+      );
+    };
     const onGrab = (event) => setGrabbed(!!event.detail?.ok);
     window.addEventListener("tablet:penpos", onPos);
     window.addEventListener("tablet:grab", onGrab);
@@ -487,6 +503,15 @@ export function TabletShell({ onOpenSettings }) {
           style={{ transform: `translate3d(${penPos.x}px, ${penPos.y}px, 0)` }}
         />
       ) : null}
+
+      <PadMap
+        pen={penN}
+        flash={padFlash}
+        onKey={(index) => {
+          const slot = visible[index];
+          if (slot) activate(slot);
+        }}
+      />
 
       {toastText ? <div className="ts-toast">{toastText}</div> : null}
 

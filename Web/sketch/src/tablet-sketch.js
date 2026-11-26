@@ -221,7 +221,13 @@ function applyHidEvent(payload) {
 
   window.dispatchEvent(
     new CustomEvent("tablet:penpos", {
-      detail: { x, y, down: payload.ph === "began" || payload.ph === "changed" }
+      detail: {
+        x,
+        y,
+        nx: payload.x,
+        ny: payload.y,
+        down: payload.ph === "began" || payload.ph === "changed"
+      }
     })
   );
 

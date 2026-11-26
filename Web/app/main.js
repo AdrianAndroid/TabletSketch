@@ -322,12 +322,20 @@ function runFakePen() {
       const y = 0.5 + Math.sin(t * 6.28) * 0.15;
       const send = (p) => win?.webContents.send("pen:event", p);
       if (i < 10) send({ t: "pen", ph: "hover", x, y, p: 0 });
-      else if (i === 10) send({ t: "pen", ph: "began", x, y, p: 0.3 });
+      else if (i === 10) {
+        send({ t: "pen", ph: "began", x, y, p: 0.3 });
+        send({ t: "aux", keys: [3] });
+      }
       else if (i < 60) send({ t: "pen", ph: "changed", x, y, p: 0.3 + 0.5 * Math.abs(Math.sin(i / 8)) });
       else if (i === 60) { send({ t: "pen", ph: "ended", x, y, p: 0 }); clearInterval(timer); }
       i += 1;
     }, 16);
   }, 3500);
+
+  // 连续"按住"板载键，方便截图确认高亮位置与真机是否对得上
+  setInterval(() => {
+    win?.webContents.send("pen:event", { t: "aux", keys: [3] });
+  }, 220);
 }
 
 // 自测：进入手写板模式、切到手写工具、注入一条压力渐变的笔迹。
