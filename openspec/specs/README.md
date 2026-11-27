@@ -6,7 +6,7 @@
 |---|---|---|
 | [`pen-input`](pen-input/spec.md) | 设备识别、三通道职责、三态判定、压力整形、板载 8 键、映射范围、独占现状、统一虚拟笔、输入仲裁、鼠标边界 | bootstrap / seize / onboard-pad-visualizer / window-as-pad / map-onboard-keys / add-mouse-input |
 | [`canvas-mapping`](canvas-mapping/spec.md) | 画布比例、等比映射、越界丢弃、画布锁定 | bootstrap-tablet-sketch |
-| [`pen-first-ui`](pen-first-ui/spec.md) | 窗口即板面、按键带、右侧浮岛、下拉、两级样式环、鼠标入口 | bootstrap-tablet-sketch / window-as-pad / add-mouse-input / turn-radial-menu-into-style-wheel |
+| [`pen-first-ui`](pen-first-ui/spec.md) | 窗口即板面、按键带、右侧浮岛、下拉、两级样式环、鼠标入口、工具选择持久化、输入分层与冲突裁决 | bootstrap-tablet-sketch / window-as-pad / add-mouse-input / turn-radial-menu-into-style-wheel / fix-island-tool-persistence / align-pen-tool-with-mouse / clarify-pen-first-input-priority |
 | [`sketch-document`](sketch-document/spec.md) | 多画布、`.excalidraw`、自动保存、导入导出、素材库 | bootstrap-tablet-sketch |
 | [`app-settings`](app-settings/spec.md) | 设置入口、设置小窗、可定制范围、持久化 | bootstrap-tablet-sketch / turn-radial-menu-into-style-wheel |
 | [`express-keys`](express-keys/spec.md) | 8 板载键 + 2 笔侧键、默认映射、持久化 | bootstrap-tablet-sketch / map-onboard-keys / turn-radial-menu-into-style-wheel |
@@ -29,6 +29,9 @@
 | 2026-11-27 | `add-app-icon` | 已归档：自绘应用图标，CoreGraphics 生成全尺寸 `.icns` |
 | 2026-11-27 | `restore-excalidraw-fork` | 已归档：恢复 Excalidraw fork submodule（撤销 drop-unused-excalidraw-fork，无行为变化） |
 | 2026-11-27 | `add-stable-code-signing` | 已归档：固定自签身份、签名校验、覆盖安装到 `/Applications` |
+| 2026-11-28 | `fix-island-tool-persistence` | 已归档：笔点浮岛按钮不再把工具重置成画笔 |
+| 2026-11-28 | `align-pen-tool-with-mouse` | 已归档：笔落画布不再改写工具，笔与鼠标行为一致 |
+| 2026-11-28 | `clarify-pen-first-input-priority` | 已归档：笔为准、鼠标是应用内模拟层的输入规则写入硬约束与规格 |
 
 ## 已知未解决
 

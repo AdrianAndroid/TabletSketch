@@ -191,6 +191,60 @@ const SCENARIO = String.raw`(async () => {
     await sleep(40);
   }
 
+  // ---------- 笔点浮岛工具格：工具保持 ----------
+  const stage = $(".ts-stage");
+  const penAt = (el, phase, nx, ny) => {
+    const s = stage?.getBoundingClientRect();
+    const r = el?.getBoundingClientRect();
+    const x = r ? (r.left + r.width / 2 - s.left) / s.width : nx;
+    const y = r ? (r.top + r.height / 2 - s.top) / s.height : ny;
+    document.dispatchEvent(new CustomEvent("ts:hid", { detail: { t: "pen", ph: phase, x, y, p: 0.5 } }));
+  };
+  const penClickCell = (el) => { penAt(el, "began"); penAt(el, "ended"); };
+
+  click(cell(6));
+  await sleep(120);
+  log("笔测试前置：选工具已生效", window.tabletSketch?.getTool?.() === "selection", window.tabletSketch?.getTool?.());
+
+  penClickCell(cell(4));
+  await sleep(150);
+  log("笔点浮岛工具格生效", window.tabletSketch?.getTool?.() === "eraser", window.tabletSketch?.getTool?.());
+  await sleep(200);
+  log("笔点后工具保持不跳回画笔", window.tabletSketch?.getTool?.() === "eraser", window.tabletSketch?.getTool?.());
+
+  if (stage) {
+    const s = stage.getBoundingClientRect();
+    const probe = topAt(s.left + s.width * 0.45, s.top + s.height * 0.55);
+    log("画布空白落点未被 UI 遮挡", !probe?.closest?.("[data-ts-ui]"), probe?.className || probe?.tagName || "null");
+
+    // 选矩形后用笔落画布：began 阶段工具不应被改写成画笔
+    click(cell(7));
+    await sleep(120);
+    penAt(null, "began", 0.45, 0.55);
+    await sleep(30);
+    const penToolOnBegan = window.tabletSketch?.getTool?.();
+    penAt(null, "ended", 0.45, 0.55);
+    await sleep(180);
+    log("笔落画布不改写工具", penToolOnBegan === "rectangle", "began=" + penToolOnBegan);
+
+    // 鼠标走同样流程，对比 began 阶段是否一致
+    click(cell(7));
+    await sleep(120);
+    const mx = s.left + s.width * 0.55;
+    const my = s.top + s.height * 0.55;
+    pointer("pointerdown", mx, my, topAt(mx, my));
+    await sleep(30);
+    const mouseToolOnDown = window.tabletSketch?.getTool?.();
+    pointer("pointerup", mx, my, window);
+    await sleep(180);
+    log("笔与鼠标落笔工具一致", penToolOnBegan === mouseToolOnDown,
+        "pen=" + penToolOnBegan + " mouse=" + mouseToolOnDown);
+  } else {
+    log("画布空白落点未被 UI 遮挡", false, ".ts-stage 不存在");
+    log("笔落画布不改写工具", false, ".ts-stage 不存在");
+    log("笔与鼠标落笔工具一致", false, ".ts-stage 不存在");
+  }
+
   // ---------- 面板：画布 / 素材 ----------
   closePanel();
   click(cell(1));

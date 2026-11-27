@@ -33,6 +33,8 @@ const TOOL_TYPES = new Set([
 let api = null;
 let drawing = false;
 let strokeSource = null;
+/** 用户主动选过工具后，启动阶段的默认画笔不再覆盖。 */
+let userPickedTool = false;
 
 function post(type, payload = {}) {
   try {
@@ -241,10 +243,6 @@ function applyHidEvent(payload, source = "pen") {
 
   const target = canvasEl();
   if (!target) return;
-  if (source === "pen" && payload.ph === "began") {
-    ensureDrawTool();
-    console.log("[pen] began", JSON.stringify(payload));
-  }
   const rect = target.getBoundingClientRect();
   const x = rect.left + payload.x * rect.width;
   const y = rect.top + payload.y * rect.height;
@@ -272,7 +270,8 @@ function applyHidEvent(payload, source = "pen") {
 
   const hit = document.elementFromPoint(x, y);
 
-  // 落在自绘 UI 上：转成一次点击
+  // 落在自绘 UI 上：转成一次点击，不碰当前工具。
+  // 这里必须在 ensureDrawTool 之前返回，否则点浮岛按钮会把工具重置成画笔。
   if (isChrome(hit)) {
     if (payload.ph === "began") {
       hit.dispatchEvent(makePointerEvent("pointerdown", x, y, 0.5));
@@ -284,6 +283,7 @@ function applyHidEvent(payload, source = "pen") {
     return;
   }
 
+  // 画布落笔不改工具：笔与鼠标一致，工具后续回到选择态由 Excalidraw 原生语义决定。
   const type =
     payload.ph === "began" ? "pointerdown" : payload.ph === "ended" ? "pointerup" : "pointermove";
   const pressure = payload.ph === "ended" ? 0 : shapePressure(payload.p || 0);
@@ -414,14 +414,17 @@ function insertLibraryItem(itemId) {
 function installTabletSketch(excalidrawApi) {
   api = excalidrawApi;
   patchPointerCapture();
-  // 手写板应用一打开就该是画笔，不用先去点工具
-  setTimeout(() => ensureDrawTool(), 400);
+  // 手写板应用一打开就该是画笔；若用户已主动选过工具则不覆盖。
+  setTimeout(() => {
+    if (!userPickedTool) ensureDrawTool();
+  }, 400);
 
   const bridge = {
     // ---- 工具 ----
     setTool(name) {
       if (!TOOL_TYPES.has(name)) return false;
       api.setActiveTool({ type: name });
+      userPickedTool = true;
       return true;
     },
     getTool() {

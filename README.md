@@ -127,7 +127,7 @@ openspec/changes/archive/YYYY-MM-DD-<change-id>/
 openspec/specs/<capability>/spec.md
 ```
 
-已归档 9 个变更，稳定规格 7 份：`pen-input`、`canvas-mapping`、`pen-first-ui`、`sketch-document`、`app-settings`、`express-keys`、`app-lifecycle`。索引见 `openspec/specs/README.md`。
+已归档 20 个变更，稳定规格 8 份：`pen-input`、`canvas-mapping`、`pen-first-ui`、`sketch-document`、`app-settings`、`express-keys`、`app-lifecycle`、`app-icon`。索引见 `openspec/specs/README.md`。
 
 ## 已知限制
 

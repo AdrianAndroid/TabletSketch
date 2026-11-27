@@ -39,3 +39,4 @@ Web/app/release/
 
 # 本地 agent 会话数据
 .myflicker/
+.workbuddy/
