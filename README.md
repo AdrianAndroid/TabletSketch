@@ -1,5 +1,7 @@
 # TabletSketch
 
+<img src="Docs/images/app-icon.png" alt="TabletSketch 应用图标" width="128" />
+
 面向 **XP-Pen Deco 640** 的独立 macOS 压感草图应用。
 
 窗口本身就是板面：上方一排是手写板 8 个板载键的按键带，下方是 16:9 手写区。笔的坐标只映射到手写区，悬停有跟随圆圈，轻触即出墨，压力控制粗细。
@@ -106,7 +108,8 @@ TabletSketch/
 │   ├── HANDOFF.md             # 交接文档：做过什么、还剩什么、踩过哪些坑
 │   ├── research/              # Deco 640 协议预研
 │   └── images/                # README 配图
-└── Tools/DecoProbe.swift      # 只读 HID 探针
+├── Tools/DecoProbe.swift      # 只读 HID 探针
+└── Tools/make-icon.swift      # 自绘应用图标（生成 Resources/AppIcon.icns）
 ```
 
 ## OpenSpec 工作流

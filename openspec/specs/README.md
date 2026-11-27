@@ -11,6 +11,7 @@
 | [`app-settings`](app-settings/spec.md) | 设置入口、设置小窗、可定制范围、持久化 | bootstrap-tablet-sketch / turn-radial-menu-into-style-wheel |
 | [`express-keys`](express-keys/spec.md) | 8 板载键 + 2 笔侧键、默认映射、持久化 | bootstrap-tablet-sketch / map-onboard-keys / turn-radial-menu-into-style-wheel |
 | [`app-lifecycle`](app-lifecycle/spec.md) | 独立 App、入口、权限、无设备回退、单实例 | bootstrap-tablet-sketch / add-mouse-input |
+| [`app-icon`](app-icon/spec.md) | 自有图标、全尺寸、可重复生成 | add-app-icon |
 
 ## 归档记录
 
@@ -25,6 +26,7 @@
 | 2026-11-27 | `pen-telemetry-panel` | 已归档：右上角压感与倾斜读数板，进度条改感知映射 |
 | 2026-11-27 | `add-mouse-input` | 已归档：鼠标接入统一虚拟笔，右键 / `\` 开样式环，小圆点与笔触边界 |
 | 2026-11-27 | `turn-radial-menu-into-style-wheel` | 已归档：侧键 1 改为两级样式环，旧动作迁到浮岛「更多」 |
+| 2026-11-27 | `add-app-icon` | 已归档：自绘应用图标，CoreGraphics 生成全尺寸 `.icns` |
 
 ## 已知未解决
 

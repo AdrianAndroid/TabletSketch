@@ -33,6 +33,11 @@ cp -R "$ROOT/Resources/Sketch" "$RES/sketch"
 cp "$BIN" "$RES/bin/tablet-sketch-hid"
 chmod +x "$RES/bin/tablet-sketch-hid"
 
+# 应用图标：自绘 .icns，由 Tools/make-icon.swift 生成
+cp "$ROOT/Resources/AppIcon.icns" "$APP/Contents/Resources/AppIcon.icns"
+/usr/libexec/PlistBuddy -c "Set :CFBundleIconFile AppIcon" "$APP/Contents/Info.plist" 2>/dev/null \
+  || /usr/libexec/PlistBuddy -c "Add :CFBundleIconFile string AppIcon" "$APP/Contents/Info.plist"
+
 # 去掉默认的 Electron 图标资源目录里多余的没用的东西不管，保持原样
 echo "前端产物: $(ls -t "$ROOT/Resources/Sketch/assets"/index-*.js | head -1 | xargs basename)"
 echo "已生成 $APP"

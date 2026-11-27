@@ -494,3 +494,18 @@ nohup Build/TabletSketch.app/Contents/MacOS/TabletSketch > /tmp/ts_app.log 2>&1 
 
 - 样式环靠 SVG 扇区自身命中；`Shell.jsx` 里 scrim 必须低于环，否则点扇区会被 scrim 吃掉。
 - 鼠标路径不调用 `CanvasMapping`，避免两套坐标逻辑。
+
+## 2026-11-27 · 应用图标（add-app-icon）
+
+图标不再用 Electron 默认图，改为项目内自绘：
+
+```
+swift Tools/make-icon.swift --out /tmp/AppIcon.iconset --variant A
+iconutil -c icns /tmp/AppIcon.iconset -o Resources/AppIcon.icns
+```
+
+- 视觉：深墨蓝底板 + 白色压感笔迹 + 深色触控笔与主色环；不写字。
+- `make-app.sh` 会把 `.icns` 拷进 `Contents/Resources` 并设置 `CFBundleIconFile=AppIcon`。
+- 尺寸链 16–1024，由 1024 主图缩放；`--variant B/C` 只是备选配色，不参与默认产物。
+- 改图标只改 `Tools/make-icon.swift`，禁止手改 `.icns`。
+- 未签名应用的 Dock 图标可能被系统缓存，验收前 `killall Dock` 或重登一次。
