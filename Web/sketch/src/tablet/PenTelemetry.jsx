@@ -8,6 +8,24 @@ function shapePressure(p) {
   return Math.min(1, 0.35 + 0.65 * Math.pow(p, 0.6));
 }
 
+/**
+ * 进度条用感知映射而不是线性：这张板的压感低端很陡，
+ * 轻触就 2000–4000、正常书写 5000 左右，线性条只走到 1/3，看着像没反应。
+ */
+function perceive(p) {
+  return Math.sqrt(Math.max(0, Math.min(1, p)));
+}
+
+/** 力度档位，让数字有个可读的参照 */
+function grade(p) {
+  if (!(p > 0.0005)) return "轻触";
+  if (p < 0.10) return "轻";
+  if (p < 0.30) return "中";
+  if (p < 0.60) return "重";
+  if (p < 0.98) return "很重";
+  return "满量程";
+}
+
 /** 由 X/Y 两侧倾角合成「笔相对面板法线的夹角」 */
 function tiltAngle(tiltX, tiltY) {
   const cx = Math.max(-89, Math.min(89, tiltX));
@@ -42,12 +60,13 @@ export function PenTelemetry({ data, onClose }) {
         </span>
       </div>
       <div className="ts-tele-bar">
-        <i style={{ width: `${Math.round(p * 100)}%` }} />
+        <i style={{ width: `${Math.round(perceive(p) * 100)}%` }} />
       </div>
       <div className="ts-tele-row">
         <span className="ts-tele-k">归一 / 出墨</span>
         <span className="ts-tele-v">
           {p.toFixed(2)} <em>→</em> {shaped.toFixed(2)}
+          <em> · {idle ? "—" : grade(p)}</em>
         </span>
       </div>
 
