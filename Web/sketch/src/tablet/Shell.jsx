@@ -123,7 +123,7 @@ export function TabletShell({ onOpenSettings }) {
   // 独占打开成功后系统不再画指针，光标由我们自己画
   const [grabbed, setGrabbed] = useState(false);
   const [penPos, setPenPos] = useState(null);
-  const [mousePos, setMousePos] = useState(null);
+  const [cursor, setCursor] = useState(null);
   const [padFlash, setPadFlash] = useState(null);
   // 压感 / 倾斜测试读数
   const [telemetry, setTelemetry] = useState(null);
@@ -238,6 +238,10 @@ export function TabletShell({ onOpenSettings }) {
     const onPos = (event) => {
       const detail = event.detail;
       setPenPos(detail);
+      setCursor((current) => {
+        if (detail) return { x: detail.x, y: detail.y, down: !!detail.down, source: "pen" };
+        return current?.source === "pen" ? null : current;
+      });
     };
     const onGrab = (event) => setGrabbed(!!event.detail?.ok);
     window.addEventListener("tablet:penpos", onPos);
@@ -314,7 +318,10 @@ export function TabletShell({ onOpenSettings }) {
     const onMouse = (event) => {
       const detail = event.detail;
       if (detail) mouseRef.current = { x: detail.x, y: detail.y };
-      setMousePos(detail || null);
+      setCursor((current) => {
+        if (detail) return { x: detail.x, y: detail.y, down: !!detail.down, source: "mouse" };
+        return current?.source === "mouse" ? null : current;
+      });
     };
     window.addEventListener("tablet:mousepos", onMouse);
     return () => window.removeEventListener("tablet:mousepos", onMouse);
@@ -816,17 +823,11 @@ export function TabletShell({ onOpenSettings }) {
         <PenTelemetryChip side={side} onClick={() => setTeleOpen(true)} />
       )}
 
-      {penPos ? (
+      {/* 唯一指示器：手写笔与鼠标共用，最后活动的来源决定位置 */}
+      {cursor ? (
         <div
-          className={`ts-pen-cursor${penPos.down ? " is-down" : ""}${crosshair ? " is-cross" : ""}`}
-          style={{ transform: `translate3d(${penPos.x}px, ${penPos.y}px, 0)` }}
-        />
-      ) : null}
-
-      {mousePos ? (
-        <div
-          className={`ts-mouse-dot${mousePos.down ? " is-down" : ""}${crosshair ? " is-cross" : ""}`}
-          style={{ transform: `translate3d(${mousePos.x}px, ${mousePos.y}px, 0)` }}
+          className={`ts-pen-cursor${cursor.down ? " is-down" : ""}${crosshair ? " is-cross" : ""}`}
+          style={{ transform: `translate3d(${cursor.x}px, ${cursor.y}px, 0)` }}
         />
       ) : null}
 

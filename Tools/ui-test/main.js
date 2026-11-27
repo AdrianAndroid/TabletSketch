@@ -255,20 +255,36 @@ const SCENARIO = String.raw`(async () => {
   log("无选中时「样式环」置灰", !!styleRow && styleRow.classList.contains("is-disabled"), styleRow?.className || "missing");
   closePanel();
 
-  // ---------- 工具光标 ----------
-  window.dispatchEvent(new CustomEvent("tablet:mousepos", { detail: { x: 500, y: 300, down: false } }));
-  document.dispatchEvent(new CustomEvent("ts:hid", { detail: { t: "pen", ph: "hover", x: 0.5, y: 0.5 } }));
+  // ---------- 统一光标 ----------
+  window.dispatchEvent(new CustomEvent("tablet:mousepos", { detail: { x: 500, y: 600, down: false } }));
   await sleep(150);
-  window.tabletSketch.setTool("rectangle");
-  await sleep(150);
-  log("矩形工具鼠标显示十字", !!$(".ts-mouse-dot.is-cross"), $(".ts-mouse-dot")?.className || "missing");
-  log("矩形工具笔显示十字", !!$(".ts-pen-cursor.is-cross"), $(".ts-pen-cursor")?.className || "missing");
+  const mouseTransform = $(".ts-pen-cursor")?.style.transform || "";
+  log("鼠标带动同一个指示器", mouseTransform.includes("500") && mouseTransform.includes("600"), mouseTransform || "missing");
+  log("没有鼠标专属小点", !$(".ts-mouse-dot"), $(".ts-mouse-dot") ? "still present" : "removed");
+
+  click(cell(7));
+  await sleep(250);
+  log("矩形工具显示十字", !!$(".ts-pen-cursor.is-cross"), $(".ts-pen-cursor")?.className || "missing");
   log("系统光标未被隐藏", getComputedStyle(document.body).cursor !== "none", getComputedStyle(document.body).cursor);
 
   click(cell(6));
   await sleep(250);
-  log("选择工具鼠标回到圆点", !$(".ts-mouse-dot.is-cross"), $(".ts-mouse-dot")?.className || "missing");
-  log("选择工具笔回到圆环", !$(".ts-pen-cursor.is-cross"), $(".ts-pen-cursor")?.className || "missing");
+  log("选择工具回到圆环", !$(".ts-pen-cursor.is-cross"), $(".ts-pen-cursor")?.className || "missing");
+
+  document.dispatchEvent(new CustomEvent("ts:hid", { detail: { t: "pen", ph: "hover", x: 0.5, y: 0.5 } }));
+  await sleep(160);
+  const penTransform = $(".ts-pen-cursor")?.style.transform || "";
+  log("手写笔驱动同一指示器", penTransform.length > 0 && penTransform !== mouseTransform, penTransform || "missing");
+
+  // 让鼠标重新成为最后活动源，再移出
+  window.dispatchEvent(new CustomEvent("tablet:mousepos", { detail: { x: 420, y: 520, down: false } }));
+  await sleep(100);
+  window.dispatchEvent(new CustomEvent("tablet:mousepos", { detail: null }));
+  await sleep(120);
+  log("鼠标移出隐藏指示器", !$(".ts-pen-cursor"), $(".ts-pen-cursor") ? "still visible" : "hidden");
+  window.dispatchEvent(new CustomEvent("tablet:mousepos", { detail: { x: 430, y: 530, down: false } }));
+  await sleep(120);
+  log("鼠标移入恢复指示器", !!$(".ts-pen-cursor"), $(".ts-pen-cursor")?.style.transform || "missing");
 
   // ---------- 双排布局不溢出 ----------
   const ir = $(".ts-island").getBoundingClientRect();

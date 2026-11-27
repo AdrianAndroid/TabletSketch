@@ -208,7 +208,7 @@ HID 解析数据 SHALL 只在本地处理。
 
 ### Requirement: 统一虚拟笔输入
 
-鼠标与手写板 SHALL 共用同一套虚拟笔事件，不得维护两套独立绘制链路。
+鼠标与手写板 SHALL 共用同一套虚拟笔事件与同一个笔尖指示器，不得维护两套独立绘制链路或两套光标。
 
 #### Scenario: 手写板来源
 
@@ -230,6 +230,16 @@ HID 解析数据 SHALL 只在本地处理。
 - **THEN** 事件格式 MUST 为 `{t:"pen", ph, x, y, p}`
 - **AND** MUST 走同一个画布事件入口
 - **AND** 鼠标路径 MUST NOT 调用 `CanvasMapping`
+
+#### Scenario: 共用指示器
+
+- **WHEN** 鼠标移动
+- **THEN** 手写笔的圆环 / 十字指示器 MUST 跟随鼠标位置
+- **AND** MUST NOT 为鼠标显示另一套专属光标
+- **AND** 指示器形态 MUST 只由当前工具决定
+- **WHEN** 手写板移动
+- **THEN** 同一个指示器 MUST 跟随笔的映射位置
+- **AND** 最后活动的来源 MUST 决定指示器位置
 
 ### Requirement: 输入仲裁
 
@@ -274,18 +284,18 @@ HID 解析数据 SHALL 只在本地处理。
 - **AND** MUST 可移出窗口、切到其他应用
 - **AND** MUST NOT 被夹到画布边界或窗口边界
 
-#### Scenario: 小圆点
+#### Scenario: 指示器
 
 - **WHEN** 鼠标在应用内移动
 - **THEN** 系统箭头 MUST 保留
-- **AND** 鼠标位置 MUST 显示一个小圆点作为笔尖指示
-- **AND** 小圆点 MUST `pointer-events: none`
+- **AND** 共用的虚拟笔指示器 MUST 跟随鼠标热点
+- **AND** 指示器 MUST `pointer-events: none`
 - **WHEN** 鼠标移出应用
-- **THEN** 小圆点 MUST 隐藏
+- **THEN** 指示器 MUST 隐藏
 - **AND** 系统光标 MUST 保持正常
 - **WHEN** 样式环打开
-- **THEN** 小圆点 MUST 保持显示，作为瞄准点
-- **AND** 小圆点 MUST NOT 拦截扇区点击
+- **THEN** 指示器 MUST 保持显示，作为瞄准点
+- **AND** 指示器 MUST NOT 拦截扇区点击
 
 ### Requirement: 笔触范围与边界
 
