@@ -1,4 +1,6 @@
-# pen-first-ui 变更（bootstrap-tablet-sketch）
+# pen-first-ui · 稳定规格
+
+> 合并自 `bootstrap-tablet-sketch`（窗口即板面、浮岛、径向菜单）与 `pen-telemetry-panel`（压感/倾斜读数板）。
 
 ## ADDED Requirements
 
@@ -441,3 +443,34 @@ TabletSketch SHALL 在手写板模式下把窗口做成「一块板子」，而�
 - **WHEN** 系统开启「减少动态效果」
 - **THEN** 浮岛淡出、气泡展开、二级面板动画 MUST 降级为无动画或短动画
 - **AND** 功能不得受影响
+
+### Requirement: 压感 / 倾斜读数板
+
+界面 SHALL 在右上角、按键带之下提供一个调试读数板。
+
+> 位置约束：`top: 72px`。按键带高 64pt，任何高于此的浮层都会挡住 8 号键。
+
+#### Scenario: 笔在感应区内
+
+- **WHEN** 收到任意 `pen` 事件
+- **THEN** MUST 显示原始压力 `0..16383`、归一值、整形后的出墨值、力度档位
+- **AND** MUST 显示倾斜 X / Y 与合成笔杆倾角
+- **AND** 进度条 MUST 使用感知映射 `sqrt(p)`，不得用线性映射
+
+> 感知映射的原因：本板压力响应前重后轻，正常书写的 4000–6000 只占满量程 25–37%，线性条看着像没反应。
+
+#### Scenario: 笔离开
+
+- **WHEN** 收到 `ph = "leave"`
+- **THEN** 读数板 MUST 置灰、数值显示为 `—`
+- **AND** MUST NOT 用旧读数冒充实时值
+
+#### Scenario: 收起与重开
+
+- **WHEN** 用户点击关闭
+- **THEN** 面板收起，右上角 MUST 保留「压感」胶囊，点击可重新展开（R0）
+
+#### Scenario: 与浮岛不重叠
+
+- **WHEN** 读数板展开
+- **THEN** 其下边缘 MUST 不与右侧浮岛顶部重叠

@@ -21,6 +21,8 @@
 | 2026-11-27 | `onboard-pad-visualizer` | 已归档，**方案已被 window-as-pad 取代**（缩略卡片 → 窗口即板面） |
 | 2026-11-27 | `window-as-pad` | 已归档：窗口上下两段版式，笔只在手写区内 |
 | 2026-11-27 | `map-onboard-keys` | 已归档：板载键改走 page 1 键盘报告，8 键映射逐键实测 |
+| 2026-11-27 | `wire-pen-side-keys` | 已归档：侧键改从 Digitizer flags 取位，径向菜单/样式气泡接通 |
+| 2026-11-27 | `pen-telemetry-panel` | 已归档：右上角压感与倾斜读数板，进度条改感知映射 |
 
 ## 已知未解决
 
