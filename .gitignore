@@ -36,3 +36,6 @@ Web/app/release/
 .env
 .env.*
 !.env.example
+
+# 本地 agent 会话数据
+.myflicker/

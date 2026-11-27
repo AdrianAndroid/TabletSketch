@@ -17,10 +17,11 @@
 | 压感控制粗细 | ✅ 0–16383 级压力，整形后映射到线宽 |
 | 笔迹限制在手写区 | ✅ 坐标只映射到 `.ts-stage`，手指不会画出界 |
 | 板载 8 键识别 | ✅ 按键带上对应位置亮起 |
-| 笔侧键 2 个 | ✅ 侧键 1 呼出径向菜单，侧键 2 弹样式气泡 |
+| 笔侧键 2 个 | ✅ 侧键 1 呼出两级样式环，侧键 2 弹样式气泡 |
+| 鼠标当笔用 | ✅ 左键出墨、右键 / `\` 开样式环，系统箭头与小圆点并存 |
 | 压感 / 倾斜读数 | ✅ 右上角实时显示原始压力与倾角 |
 | 窗口即板面 | ✅ 上按键带 64pt + 下手写区，比例按真机 |
-| 径向菜单 / 浮岛 / 素材库 | ✅ 自绘界面，不依赖 Excalidraw 原生 chrome |
+| 样式环 / 浮岛 / 素材库 | ✅ 两级同心环调样式，不依赖 Excalidraw 原生 chrome |
 | 画板存取 | ✅ `.excalidraw` 文件，⌘S 静默保存 |
 
 ![板载键按键带](Docs/images/key-band.png)
@@ -66,6 +67,7 @@ open Build/TabletSketch.app
 | `TS_DUMP=1` | 把 HID 原始报文打到日志 |
 | `TS_NO_GRAB=1` | 关闭独占尝试 |
 | `TS_DEV=1` | 打开 DevTools |
+| `TS_NO_ANIM=1` | 关闭样式环动画，方便截图与验收 |
 
 ## 架构
 
@@ -76,7 +78,7 @@ Electron 主进程 (Web/app/main.js)
   │     └── Generic Desktop 接口 → 板载 8 键（Report ID 6 键盘报告）
   └── BrowserWindow → Excalidraw 画板 (Web/sketch)
         ├── tablet-sketch.js  笔事件路由、压力整形、工具切换
-        └── tablet/*          自绘 chrome：按键带、浮岛、径向菜单、设置
+        └── tablet/*          自绘 chrome：按键带、浮岛、样式环、设置
 ```
 
 - 前端基于 Excalidraw 0.18.1（`Web/vendor/excalidraw`，submodule，未改源码），原生 UI 由 CSS 隐藏，交互全部自绘。
@@ -119,7 +121,7 @@ openspec/changes/archive/YYYY-MM-DD-<change-id>/
 openspec/specs/<capability>/spec.md
 ```
 
-已归档 5 个变更，稳定规格 7 份：`pen-input`、`canvas-mapping`、`pen-first-ui`、`sketch-document`、`app-settings`、`express-keys`、`app-lifecycle`。索引见 `openspec/specs/README.md`。
+已归档 9 个变更，稳定规格 7 份：`pen-input`、`canvas-mapping`、`pen-first-ui`、`sketch-document`、`app-settings`、`express-keys`、`app-lifecycle`。索引见 `openspec/specs/README.md`。
 
 ## 已知限制
 
@@ -134,7 +136,7 @@ openspec/specs/<capability>/spec.md
 
 ## 路线图
 
-- **P0 / P1 已完成**：只读 HID、压感、轻触起笔、16:9 画布、笔迹限界、板载键、径向菜单、浮岛、窗口即板面
+- **P0 / P1 已完成**：只读 HID、压感、轻触起笔、16:9 画布、笔迹限界、板载键、两级样式环、鼠标虚拟笔、浮岛、窗口即板面
 - **下一步**：板载键改写成 F13–F20 防外泄、冻结系统光标、签名与图标
 - **更远**：压感曲线预设、掌压过滤、平滑与预测、模板
 

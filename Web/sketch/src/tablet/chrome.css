@@ -271,6 +271,15 @@ body.tablet-mode {
   min-height: 34px;
 }
 
+.ts-row.is-disabled {
+  opacity: 0.38;
+  pointer-events: none;
+}
+
+.ts-row:disabled {
+  cursor: default;
+}
+
 .ts-row:hover {
   background: rgba(19, 20, 23, 0.05);
 }
@@ -489,18 +498,7 @@ body.tablet-mode {
 .ts-radial {
   position: absolute;
   pointer-events: auto;
-  animation: ts-radial-in 0.16s ease-out;
-}
-
-@keyframes ts-radial-in {
-  from {
-    opacity: 0;
-    transform: scale(0.9);
-  }
-  to {
-    opacity: 1;
-    transform: scale(1);
-  }
+  z-index: 70;
 }
 
 .ts-radial-svg {
@@ -508,37 +506,118 @@ body.tablet-mode {
   filter: drop-shadow(0 8px 22px rgba(16, 18, 24, 0.12));
 }
 
+.ts-radial-inner {
+  transition: opacity 90ms ease;
+}
+
+.ts-radial-inner.is-dim {
+  opacity: 0.4;
+  pointer-events: none;
+}
+
+.ts-radial.is-swap .ts-radial-slot {
+  animation-duration: 90ms;
+  animation-delay: 0ms;
+}
+
+.ts-radial-slot {
+  opacity: 0;
+  animation: ts-sector-in 64ms ease-out both;
+  animation-delay: calc(var(--i) * 14ms);
+}
+
+@keyframes ts-sector-in {
+  from {
+    opacity: 0;
+    transform: scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
 .ts-radial-path {
   fill: #ffffff;
   stroke: rgba(19, 20, 23, 0.16);
   stroke-width: 1;
   pointer-events: auto;
-  transition: fill 0.1s ease;
+  transition: fill 0.1s ease, stroke 0.1s ease;
 }
 
-.ts-radial-path:hover {
+.ts-radial-path:hover,
+.ts-radial-path.is-hover {
   fill: var(--ts-accent-soft);
 }
 
+.ts-radial-path.is-current {
+  stroke: var(--ts-accent);
+  stroke-width: 2;
+}
+
 .ts-radial-icon {
+  position: absolute;
+  left: 0;
+  top: 0;
   width: 44px;
   height: 44px;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 1px;
+  gap: 2px;
   color: #3d4046;
-  pointer-events: auto;
+  pointer-events: none;
 }
 
 .ts-radial-icon span {
   font-size: 9px;
+  line-height: 1;
   color: var(--ts-text-dim);
 }
 
-.ts-radial-slot:hover .ts-radial-icon {
-  color: var(--ts-accent);
+.ts-radial-swatch-wrap {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 44px;
+  height: 44px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  pointer-events: none;
+}
+
+.ts-radial-swatch {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: 1px solid rgba(19, 20, 23, 0.2);
+  box-sizing: border-box;
+}
+
+.ts-radial-swatch.is-none {
+  background: linear-gradient(
+      135deg,
+      transparent 44%,
+      #e03131 44%,
+      #e03131 56%,
+      transparent 56%
+    ),
+    #ffffff;
+}
+
+.ts-radial-swatch-wrap span {
+  font-size: 9px;
+  line-height: 1;
+  color: var(--ts-text-dim);
+}
+
+.ts-radial-current-dot {
+  fill: var(--ts-accent);
+  pointer-events: none;
 }
 
 .ts-radial-center {
@@ -558,6 +637,31 @@ body.tablet-mode {
   fill: #9aa0a7;
   pointer-events: none;
   user-select: none;
+}
+
+.ts-radial-tip {
+  position: fixed;
+  transform: translate(-50%, -50%);
+  z-index: 75;
+  pointer-events: none;
+  padding: 6px 10px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.96);
+  color: var(--ts-text);
+  font-size: 11px;
+  line-height: 1.2;
+  white-space: nowrap;
+  box-shadow: 0 6px 18px rgba(16, 18, 24, 0.16);
+  animation: ts-tip-in 80ms ease-out both;
+}
+
+@keyframes ts-tip-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
 }
 
 /* ---------------------------------------------------------------- 样式气泡 */
@@ -678,6 +782,7 @@ body.tablet-mode {
   inset: 0;
   pointer-events: auto;
   background: transparent;
+  z-index: 60;
 }
 
 /* ---------------------------------------------------------------- 设置 */
@@ -1023,6 +1128,28 @@ body.tablet-mode {
   background: #4b3ff0;
 }
 
+.ts-mouse-dot {
+  position: fixed;
+  left: 0;
+  top: 0;
+  width: 6px;
+  height: 6px;
+  margin: -3px 0 0 -3px;
+  border-radius: 50%;
+  background: rgba(10, 132, 255, 0.92);
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.9), 0 2px 6px rgba(10, 132, 255, 0.35);
+  pointer-events: none;
+  z-index: 65;
+  transition: width 70ms ease, height 70ms ease, margin 70ms ease;
+}
+
+.ts-mouse-dot.is-down {
+  width: 8px;
+  height: 8px;
+  margin: -4px 0 0 -4px;
+  background: #4b3ff0;
+}
+
 /* ---------------------------------------------------------------- 按键带（窗口即板面） */
 
 .ts-band {
@@ -1204,4 +1331,43 @@ body.tablet-mode {
 .ts-layer .ts-tele-chip:hover {
   color: var(--ts-text);
   border-color: #d5dbe5;
+}
+
+@media (prefers-color-scheme: dark) {
+  .ts-radial-tip {
+    background: #2c2d32;
+    color: #f2f3f5;
+    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.36);
+  }
+
+  .ts-radial-icon {
+    color: #d7d9de;
+  }
+
+  .ts-radial-swatch {
+    border-color: rgba(255, 255, 255, 0.22);
+  }
+
+  .ts-radial-swatch.is-none {
+    background: linear-gradient(
+        135deg,
+        transparent 44%,
+        #e03131 44%,
+        #e03131 56%,
+        transparent 56%
+      ),
+      #2c2d32;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ts-radial-slot {
+    animation: none;
+    opacity: 1;
+  }
+}
+
+body.ts-no-anim .ts-radial-slot {
+  animation: none;
+  opacity: 1;
 }

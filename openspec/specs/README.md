@@ -4,13 +4,13 @@
 
 | 能力 | 说明 | 合并来源 |
 |---|---|---|
-| [`pen-input`](pen-input/spec.md) | 设备识别、三通道职责、三态判定、压力整形、板载 8 键、映射范围、独占现状 | bootstrap / seize / onboard-pad-visualizer / window-as-pad / map-onboard-keys |
+| [`pen-input`](pen-input/spec.md) | 设备识别、三通道职责、三态判定、压力整形、板载 8 键、映射范围、独占现状、统一虚拟笔、输入仲裁、鼠标边界 | bootstrap / seize / onboard-pad-visualizer / window-as-pad / map-onboard-keys / add-mouse-input |
 | [`canvas-mapping`](canvas-mapping/spec.md) | 画布比例、等比映射、越界丢弃、画布锁定 | bootstrap-tablet-sketch |
-| [`pen-first-ui`](pen-first-ui/spec.md) | 窗口即板面、按键带、右侧浮岛、下拉、径向菜单 | bootstrap-tablet-sketch / window-as-pad |
+| [`pen-first-ui`](pen-first-ui/spec.md) | 窗口即板面、按键带、右侧浮岛、下拉、两级样式环、鼠标入口 | bootstrap-tablet-sketch / window-as-pad / add-mouse-input / turn-radial-menu-into-style-wheel |
 | [`sketch-document`](sketch-document/spec.md) | 多画布、`.excalidraw`、自动保存、导入导出、素材库 | bootstrap-tablet-sketch |
-| [`app-settings`](app-settings/spec.md) | 设置入口、设置小窗、可定制范围、持久化 | bootstrap-tablet-sketch |
-| [`express-keys`](express-keys/spec.md) | 8 板载键 + 2 笔侧键、默认映射、持久化 | bootstrap-tablet-sketch / map-onboard-keys |
-| [`app-lifecycle`](app-lifecycle/spec.md) | 独立 App、入口、权限、无设备回退、单实例 | bootstrap-tablet-sketch |
+| [`app-settings`](app-settings/spec.md) | 设置入口、设置小窗、可定制范围、持久化 | bootstrap-tablet-sketch / turn-radial-menu-into-style-wheel |
+| [`express-keys`](express-keys/spec.md) | 8 板载键 + 2 笔侧键、默认映射、持久化 | bootstrap-tablet-sketch / map-onboard-keys / turn-radial-menu-into-style-wheel |
+| [`app-lifecycle`](app-lifecycle/spec.md) | 独立 App、入口、权限、无设备回退、单实例 | bootstrap-tablet-sketch / add-mouse-input |
 
 ## 归档记录
 
@@ -23,6 +23,8 @@
 | 2026-11-27 | `map-onboard-keys` | 已归档：板载键改走 page 1 键盘报告，8 键映射逐键实测 |
 | 2026-11-27 | `wire-pen-side-keys` | 已归档：侧键改从 Digitizer flags 取位，径向菜单/样式气泡接通 |
 | 2026-11-27 | `pen-telemetry-panel` | 已归档：右上角压感与倾斜读数板，进度条改感知映射 |
+| 2026-11-27 | `add-mouse-input` | 已归档：鼠标接入统一虚拟笔，右键 / `\` 开样式环，小圆点与笔触边界 |
+| 2026-11-27 | `turn-radial-menu-into-style-wheel` | 已归档：侧键 1 改为两级样式环，旧动作迁到浮岛「更多」 |
 
 ## 已知未解决
 

@@ -469,3 +469,28 @@ nohup Build/TabletSketch.app/Contents/MacOS/TabletSketch > /tmp/ts_app.log 2>&1 
 ### 没动的地方
 
 `shapePressure`（`0.35 + 0.65 × p^0.6`）没有改。用户之前验收过线宽手感，改曲线会影响出墨，等明确要求再动。
+
+## 2026-11-27 · 鼠标虚拟笔与两级样式环（add-mouse-input / turn-radial-menu-into-style-wheel）
+
+### 统一虚拟笔
+
+- 新增 `Web/sketch/src/tablet/mouse-input.js`：鼠标事件按 `.ts-stage` 归一化后，走与手写板完全相同的 `applyHidEvent`，压力固定 `0.5`。
+- 只有绘图工具（`freedraw / eraser / rectangle / diamond / ellipse / arrow / line`）才拦截鼠标；`selection / hand / text / image` 放行原生鼠标，保证选中、框选、双击编辑文字、拖拽元素正常。
+- 笔画进行中由发起源独占（`strokeSource`）；空闲时谁最后动谁生效。
+- 鼠标不锁定、不裁剪、不替换光标；保留系统箭头，额外画 6pt 小圆点（落笔 8pt）。
+- 拖出 `.ts-stage` 时只夹虚拟笔坐标，系统光标不受影响。
+- 右键与 `\` 都映射到侧键 1（样式环），原生右键菜单让位给浮岛「更多 → 图层与链接…」。
+
+### 两级样式环
+
+- `style-wheel.js` 是纯函数：按图元类型给出类别、取值与 patch，内置 6 个固定色；透明度 8 档，描边宽度 3 档。
+- `RadialMenu.jsx` 支持 1 项整环、2 项上下半环、3–10 项等分；超过 10 项时第 10 槽为「更多样式」，外环 `R2 = R1 + 52`。
+- 当前值精确命中才高亮；非预设值不高亮，悬停提示显示真实值。
+- 图片不进入样式环；混合选中先过滤图片；部分锁定只改未锁定；绑定文字不跟随形状。
+- 动画：14ms/槽、单槽 64ms、总时长 ≤200ms；L2 整环 90ms；关闭立即；命中从第 0 帧起；`TS_NO_ANIM=1` 与减少动态均取消 stagger。
+- 层级：scrim 60、环 70、提示 75、小圆点 65。
+
+### 实测提醒
+
+- 样式环靠 SVG 扇区自身命中；`Shell.jsx` 里 scrim 必须低于环，否则点扇区会被 scrim 吃掉。
+- 鼠标路径不调用 `CanvasMapping`，避免两套坐标逻辑。

@@ -1,6 +1,10 @@
 # canvas-mapping 变更（bootstrap-tablet-sketch）
 
-## ADDED Requirements
+## Purpose
+
+定义手写板坐标到画布的映射规则、越界坐标的丢弃策略、绘图模式与平移模式的切换，以及画布比例、视觉边界和留白处理。
+
+## Requirements
 
 ### Requirement: 默认 16:9 等比画布
 
@@ -76,7 +80,7 @@ TabletSketch SHALL 默认使用 16:9 画布，并把 Deco 640 的有效区等比
 
 ### Requirement: 非 16:9 画布
 
-应用 SHOULD 支持 4:3、1:1 等画布比例，并按最大居中子矩形裁切平板有效区。
+应用 SHOULD 支持 4:3、1:1 等画布比例，并按最大居中子矩形裁切平板有效区。非 16:9 画布 SHALL 保持等比缩放，不得拉伸。
 
 #### Scenario: 4:3 画布
 

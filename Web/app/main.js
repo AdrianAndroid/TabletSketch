@@ -112,6 +112,11 @@ function buildMenu() {
     {
       label: "视图",
       submenu: [
+        {
+          label: "样式环",
+          click: () => win?.webContents.send("menu:style-ring")
+        },
+        { type: "separator" },
         { role: "togglefullscreen", label: "进入全屏" },
         { role: "resetZoom", label: "实际大小" },
         { type: "separator" },

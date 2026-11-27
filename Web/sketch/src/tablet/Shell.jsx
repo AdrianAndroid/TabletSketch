@@ -7,6 +7,7 @@ import { SettingsWindow } from "./settings/SettingsWindow";
 import { saveScene, openScene } from "./scene-files";
 import { PadBand } from "./PadBand.jsx";
 import { PenTelemetry, PenTelemetryChip } from "./PenTelemetry.jsx";
+import { buildLevel1, buildLevel2, categoryLabel } from "./style-wheel";
 import "./chrome.css";
 
 /** 浮岛默认槽位：前 8 格与板载键 1–8 一一对应。 */
@@ -61,6 +62,7 @@ export function TabletShell({ onOpenSettings }) {
   // 独占打开成功后系统不再画指针，光标由我们自己画
   const [grabbed, setGrabbed] = useState(false);
   const [penPos, setPenPos] = useState(null);
+  const [mousePos, setMousePos] = useState(null);
   const [padFlash, setPadFlash] = useState(null);
   // 压感 / 倾斜测试读数
   const [telemetry, setTelemetry] = useState(null);
@@ -70,6 +72,10 @@ export function TabletShell({ onOpenSettings }) {
   const dragRef = useRef(null);
   // 笔最近一次落点：径向菜单和样式气泡都以它为中心，而不是屏幕中心
   const penRef = useRef({ x: window.innerWidth / 2, y: window.innerHeight / 2 });
+  const penPosRef = useRef(null);
+  const mouseRef = useRef({ x: window.innerWidth / 2, y: window.innerHeight / 2 });
+  const radialRef = useRef(null);
+  const toastTimerRef = useRef(0);
 
   const visible = DEFAULT_SLOTS.slice(0, VISIBLE_LIMIT);
   const overflow = DEFAULT_SLOTS.slice(VISIBLE_LIMIT);
@@ -113,9 +119,10 @@ export function TabletShell({ onOpenSettings }) {
   useEffect(() => {
     const onStatus = (event) => setHidStatus(event.detail);
     const onKeys = (event) => {
-      const { kind, keys } = event.detail;
+      const { kind, keys, source } = event.detail;
+      if (radialRef.current) return;
       if (kind === "side") {
-        if (keys.includes(0)) openRadial();
+        if (keys.includes(0)) openRadial(source === "mouse" ? "mouse" : "pen");
         if (keys.includes(1)) openBubble();
         if (keys.includes(2)) applyTool("eraser");
         return;
@@ -176,6 +183,24 @@ export function TabletShell({ onOpenSettings }) {
     };
   }, []);
 
+  useEffect(() => {
+    penPosRef.current = penPos;
+  }, [penPos]);
+
+  useEffect(() => {
+    radialRef.current = radial;
+  }, [radial]);
+
+  useEffect(() => {
+    const onMouse = (event) => {
+      const detail = event.detail;
+      if (detail) mouseRef.current = { x: detail.x, y: detail.y };
+      setMousePos(detail || null);
+    };
+    window.addEventListener("tablet:mousepos", onMouse);
+    return () => window.removeEventListener("tablet:mousepos", onMouse);
+  }, []);
+
   // 画板列表和当前选择写回本地，下次打开还是这张
   useEffect(() => {
     if (!boards.length) return;
@@ -193,23 +218,150 @@ export function TabletShell({ onOpenSettings }) {
     setTool(name === "freedraw" ? "freedraw" : name);
   }, []);
 
-  const openRadial = useCallback(() => {
-    const api = bridge();
-    if (!api) return;
-    const hasSelection = api.hasSelection();
-    const { x, y } = penRef.current;
-    console.log("[radial] open at", Math.round(x), Math.round(y));
-    setOpenPanel(null);
-    setBubble(null);
-    setRadial({ x, y, hasSelection });
-    // 刚 selectAll 完就按键时，Excalidraw 的 appState 可能还没落到读口上，
-    // 一帧后再校一次，避免给用户看错槽位
-    setTimeout(() => {
-      const current = bridge();
+  const showToast = useCallback((text, ms = 1200) => {
+    setToastText(text);
+    window.clearTimeout(toastTimerRef.current);
+    toastTimerRef.current = window.setTimeout(() => setToastText(""), ms);
+  }, []);
+
+  const setRadialState = useCallback((next) => {
+    radialRef.current = next;
+    setRadial(next);
+  }, []);
+
+  const openRadial = useCallback(
+    (source = "pen") => {
+      const api = bridge();
+      if (!api) return;
+      // 笔画进行中：忽略，不打断当前笔
+      if (api.isStrokeActive?.()) return;
+      const context = api.getContext?.();
+      if (!context) return;
+      if (!context.selectedCount) {
+        showToast("先选中图形");
+        return;
+      }
+      if (context.allLocked) {
+        showToast("元素已锁定");
+        return;
+      }
+      const built = buildLevel1(context);
+      if (!built) {
+        showToast("没有可调样式");
+        return;
+      }
+      const point = source === "mouse" ? mouseRef.current : penRef.current;
+      setOpenPanel(null);
+      setBubble(null);
+      setSettingsOpen(false);
+      setTeleOpen(false);
+      setRadialState({ ...built, x: point.x, y: point.y, source, context, outerOpen: false });
+    },
+    [setRadialState, showToast]
+  );
+
+  const closeRadial = useCallback(() => {
+    setRadialState(null);
+  }, [setRadialState]);
+
+  const openLevel2 = useCallback(
+    (category) => {
+      const current = radialRef.current;
       if (!current) return;
-      const next = current.hasSelection();
-      setRadial((menu) => (menu ? { ...menu, hasSelection: next } : menu));
-    }, 80);
+      const built = buildLevel2(category, current.context);
+      if (!built) return;
+      setRadialState({ ...current, ...built, category, outerOpen: false });
+    },
+    [setRadialState]
+  );
+
+  const handleWheelAction = useCallback(
+    (slot) => {
+      const current = radialRef.current;
+      if (!current) return;
+      if (slot.kind === "more") {
+        if (!current.outerSlots.length) return;
+        setRadialState({ ...current, outerOpen: true });
+        return;
+      }
+      if (slot.kind === "category") {
+        openLevel2(slot.key);
+        return;
+      }
+      if (slot.kind === "value") {
+        const api = bridge();
+        if (!api) return;
+        try {
+          api.setStyle(slot.patch);
+          const label = categoryLabel(current.category);
+          setRadialState(null);
+          showToast(`${label} · ${slot.label}`, 1000);
+        } catch (error) {
+          showToast("样式写入失败", 1600);
+        }
+      }
+    },
+    [openLevel2, setRadialState, showToast]
+  );
+
+  const handleWheelCenter = useCallback(() => {
+    const current = radialRef.current;
+    if (!current) return;
+    if (current.outerOpen) {
+      setRadialState({ ...current, outerOpen: false });
+      return;
+    }
+    if (current.level === 2 && !current.initialSingle) {
+      const built = buildLevel1(current.context);
+      if (built) {
+        setRadialState({
+          ...built,
+          x: current.x,
+          y: current.y,
+          source: current.source,
+          context: current.context,
+          outerOpen: false
+        });
+      }
+      return;
+    }
+    setRadialState(null);
+  }, [setRadialState]);
+
+  useEffect(() => {
+    const onBlur = () => closeRadial();
+    const onResize = () => closeRadial();
+    const onKey = (event) => {
+      if (event.key === "Escape") closeRadial();
+    };
+    const onStatus = (event) => {
+      if (event.detail?.state === "disconnected") closeRadial();
+    };
+    window.addEventListener("blur", onBlur);
+    window.addEventListener("resize", onResize);
+    window.addEventListener("keydown", onKey);
+    window.addEventListener("tablet:hid-status", onStatus);
+    return () => {
+      window.removeEventListener("blur", onBlur);
+      window.removeEventListener("resize", onResize);
+      window.removeEventListener("keydown", onKey);
+      window.removeEventListener("tablet:hid-status", onStatus);
+    };
+  }, [closeRadial]);
+
+  useEffect(() => {
+    const handler = () => openRadial("mouse");
+    window.addEventListener("tablet:open-style-ring", handler);
+    return () => window.removeEventListener("tablet:open-style-ring", handler);
+  }, [openRadial]);
+
+  useEffect(() => {
+    const handler = () => {
+      const point = mouseRef.current;
+      bridge()?.contextMenu(point.x, point.y);
+    };
+    window.addEventListener("tablet:native-menu", handler);
+    return () => window.removeEventListener("tablet:native-menu", handler);
   }, []);
 
   const openBubble = useCallback(() => {
@@ -220,12 +372,12 @@ export function TabletShell({ onOpenSettings }) {
     // 图片不弹样式
     if (context.selectedTypes.length === 1 && context.selectedTypes[0] === "image") return;
     setOpenPanel(null);
-    setRadial(null);
+    setRadialState(null);
     const bx = Math.min(Math.max(penRef.current.x, 176), window.innerWidth - 176);
     const by = Math.min(Math.max(penRef.current.y - 96, 80), window.innerHeight - 160);
     console.log("[bubble] open at", Math.round(bx), Math.round(by), "pen", Math.round(penRef.current.x), Math.round(penRef.current.y));
     setBubble({ context, x: bx, y: by });
-  }, []);
+  }, [setRadialState]);
 
   // 菜单栏的「保存画板」「打开画板…」，以及操作后的提示条
   useEffect(() => {
@@ -261,28 +413,28 @@ export function TabletShell({ onOpenSettings }) {
   useEffect(() => {
     const handler = (event) => {
       const what = event.detail;
-      if (what === "radial") openRadial();
+      if (what === "radial") openRadial("pen");
       else if (what === "bubble") openBubble();
       else if (what === "settings") setSettingsOpen(true);
       else if (["menu", "canvas", "library", "more"].includes(what)) {
-        setRadial(null);
+        setRadialState(null);
         setBubble(null);
         setOpenPanel(what);
       } else {
         setOpenPanel(null);
         setSettingsOpen(false);
-        setRadial(null);
+        setRadialState(null);
         setBubble(null);
       }
     };
     window.addEventListener("tablet:demo", handler);
     return () => window.removeEventListener("tablet:demo", handler);
-  }, [openRadial, openBubble]);
+  }, [openRadial, openBubble, setRadialState]);
 
   const activate = useCallback(
     (slot) => {
       if (slot.panel) {
-        setRadial(null);
+        setRadialState(null);
         setBubble(null);
         setOpenPanel((current) => (current === slot.panel ? null : slot.panel));
         return;
@@ -327,9 +479,9 @@ export function TabletShell({ onOpenSettings }) {
 
   const closeAll = useCallback(() => {
     setOpenPanel(null);
-    setRadial(null);
+    setRadialState(null);
     setBubble(null);
-  }, []);
+  }, [setRadialState]);
 
   const currentLabel = TOOL_LABEL[tool] || "选择";
   const currentBoardName =
@@ -464,7 +616,7 @@ export function TabletShell({ onOpenSettings }) {
             className={`ts-cell ts-cell--more${openPanel === "more" ? " is-open" : ""}`}
             title="更多"
             onClick={() => {
-              setRadial(null);
+              setRadialState(null);
               setBubble(null);
               setOpenPanel((current) => (current === "more" ? null : "more"));
             }}
@@ -480,26 +632,12 @@ export function TabletShell({ onOpenSettings }) {
         <RadialMenu
           x={radial.x}
           y={radial.y}
-          hasSelection={radial.hasSelection}
-          onClose={() => setRadial(null)}
-          onAction={(action, payload) => {
-            const api = bridge();
-            if (!api) return;
-            if (action === "style") {
-              setRadial(null);
-              openBubble();
-              return;
-            }
-            if (action === "duplicate") api.duplicateSelection?.();
-            if (action === "delete") api.deleteSelection?.();
-            if (action === "more") api.contextMenu(radial.x, radial.y);
-            if (action === "selectAll") api.selectAll?.();
-            if (action === "undo") api.undo();
-            if (action === "fit") api.zoomToFit();
-            if (action === "clear") api.clearCanvas();
-            if (action === "background") api.setBackground(payload || "dots");
-            setRadial(null);
-          }}
+          slots={radial.slots}
+          outerSlots={radial.outerOpen ? radial.outerSlots : []}
+          centerLabel={radial.outerOpen ? "返回" : radial.centerLabel}
+          hoverPoint={radial.source === "pen" && penPos ? { x: penPos.x, y: penPos.y } : null}
+          onAction={handleWheelAction}
+          onCenter={handleWheelCenter}
         />
       ) : null}
 
@@ -530,6 +668,13 @@ export function TabletShell({ onOpenSettings }) {
         <div
           className={`ts-pen-cursor${penPos.down ? " is-down" : ""}`}
           style={{ transform: `translate3d(${penPos.x}px, ${penPos.y}px, 0)` }}
+        />
+      ) : null}
+
+      {mousePos ? (
+        <div
+          className={`ts-mouse-dot${mousePos.down ? " is-down" : ""}`}
+          style={{ transform: `translate3d(${mousePos.x}px, ${mousePos.y}px, 0)` }}
         />
       ) : null}
 

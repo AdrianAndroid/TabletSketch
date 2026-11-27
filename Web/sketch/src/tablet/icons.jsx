@@ -149,5 +149,43 @@ export const Icons = {
       <circle cx="10" cy="10" r="6.5" />
       <path d="M10 3.5a6.5 6.5 0 000 13z" fill="currentColor" stroke="none" />
     </Svg>
+  ),
+
+  fill: () => (
+    <Svg>
+      <path d="M4 11.5l5.5-5.5 5 5-5 5z" />
+      <path d="M4 11.5h10" />
+      <path d="M15.5 13.2c1 1 1.5 1.7 1.5 2.4a1.5 1.5 0 01-3 0c0-.7.5-1.4 1.5-2.4z" />
+    </Svg>
+  ),
+
+  width: () => <Svg><path d="M3 6h14M4.5 10h11M6 14h8" /></Svg>,
+
+  border: () => <Svg><rect x="3" y="4" width="14" height="12" rx="1.5" strokeDasharray="3 2.4" /></Svg>,
+
+  roughness: () => <Svg><path d="M3 13c2.5-5 4.5 3 7-2s3.5-1 6-5" /></Svg>,
+
+  corner: () => <Svg><path d="M4 16V9a5 5 0 015-5h7" /><path d="M4 16h12" /></Svg>,
+
+  arrowType: () => (
+    <Svg>
+      <path d="M3 15h5a3 3 0 003-3V5" />
+      <path d="M8 5h6v6" />
+    </Svg>
+  ),
+
+  arrowStart: () => <Svg><path d="M3 10h14" /><path d="M7 6l-4 4 4 4" /></Svg>,
+
+  arrowEnd: () => <Svg><path d="M3 10h14" /><path d="M13 6l4 4-4 4" /></Svg>,
+
+  font: () => <Svg><path d="M4 5h12M10 5v11" /></Svg>,
+
+  fontSize: () => <Svg><path d="M3 16l4-11 4 11" /><path d="M4.5 12h5" /><path d="M13 16l3-8 3 8" /><path d="M14 13h4" /></Svg>,
+
+  opacity: () => (
+    <Svg>
+      <circle cx="10" cy="10" r="6.5" />
+      <path d="M10 3.5a6.5 6.5 0 000 13z" fill="currentColor" stroke="none" />
+    </Svg>
   )
 };

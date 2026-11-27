@@ -1,6 +1,10 @@
 # sketch-document 变更（bootstrap-tablet-sketch）
 
-## ADDED Requirements
+## Purpose
+
+定义画布的离线运行、多画布文档模型、默认路径与原子写入、草稿恢复、导入导出互操作、素材库与文件安全边界。
+
+## Requirements
 
 ### Requirement: 离线 Excalidraw 画布
 

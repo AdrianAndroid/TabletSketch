@@ -17,6 +17,11 @@ contextBridge.exposeInMainWorld("tsFiles", {
   reveal: () => ipcRenderer.invoke("ts:reveal-sketches")
 });
 
+// 无动画模式：截图 / 自动验收时用
+contextBridge.exposeInMainWorld("tsEnv", {
+  noAnim: !!process.env.TS_NO_ANIM
+});
+
 function emit(type, detail) {
   document.dispatchEvent(new CustomEvent(type, { detail }));
 }
@@ -71,6 +76,10 @@ ipcRenderer.on("menu:save", () => {
 
 ipcRenderer.on("menu:open", () => {
   emit("ts:menu-open");
+});
+
+ipcRenderer.on("menu:style-ring", () => {
+  emit("ts:open-style-ring");
 });
 
 // 兜底：页面已经装好但 ts:ready 错过了（例如 preload 加载顺序异常）

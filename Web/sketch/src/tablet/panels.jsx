@@ -22,12 +22,15 @@ function Panel({ title, side, onClose, footer, children, width = 264 }) {
   );
 }
 
-function Row({ icon, label, hint, onClick, danger, active }) {
+function Row({ icon, label, hint, onClick, danger, active, disabled }) {
   const Icon = icon ? Icons[icon] : null;
   return (
     <button
       type="button"
-      className={`ts-row${danger ? " is-danger" : ""}${active ? " is-on" : ""}`}
+      className={`ts-row${danger ? " is-danger" : ""}${active ? " is-on" : ""}${
+        disabled ? " is-disabled" : ""
+      }`}
+      disabled={disabled}
       onClick={onClick}
     >
       <span className="ts-row-icon">{Icon ? <Icon /> : null}</span>
@@ -186,10 +189,16 @@ export function LibraryPanel({ side, onClose }) {
 // ---------------------------------------------------------------- 更多
 
 export function MorePanel({ side, onClose, slots, onPick, boardName }) {
+  const hasSelection = !!window.tabletSketch?.hasSelection?.();
   const quick = (action) => {
     const api = window.tabletSketch;
     if (action === "undo") api?.undo();
     if (action === "redo") api?.redo();
+    if (action === "duplicate") api?.duplicateSelection?.();
+    if (action === "delete") api?.deleteSelection?.();
+    if (action === "selectAll") api?.selectAll?.();
+    if (action === "styleRing") window.dispatchEvent(new Event("tablet:open-style-ring"));
+    if (action === "native") window.dispatchEvent(new Event("tablet:native-menu"));
     if (action === "fit") api?.zoomToFit();
     if (action === "save") saveScene(boardName);
     onClose();
@@ -199,6 +208,32 @@ export function MorePanel({ side, onClose, slots, onPick, boardName }) {
     <Panel title="更多" side={side} onClose={onClose}>
       <Row icon="undo" label="撤销" hint="⌘Z" onClick={() => quick("undo")} />
       <Row icon="redo" label="重做" hint="⇧⌘Z" onClick={() => quick("redo")} />
+      <div className="ts-divider" />
+      <Row
+        icon="style"
+        label="样式环"
+        hint="\\"
+        disabled={!hasSelection}
+        onClick={() => quick("styleRing")}
+      />
+      <Row
+        icon="duplicate"
+        label="副本"
+        hint="⌘D"
+        disabled={!hasSelection}
+        onClick={() => quick("duplicate")}
+      />
+      <Row
+        icon="trash"
+        label="删除"
+        hint="Delete"
+        danger
+        disabled={!hasSelection}
+        onClick={() => quick("delete")}
+      />
+      <Row icon="selectAll" label="全选" hint="⌘A" onClick={() => quick("selectAll")} />
+      <Row icon="layers" label="图层与链接…" onClick={() => quick("native")} />
+      <div className="ts-divider" />
       <Row icon="save" label="保存画板" hint="⌘S" onClick={() => quick("save")} />
       <Row icon="fit" label="适应画布" onClick={() => quick("fit")} />
       <div className="ts-divider" />

@@ -8,6 +8,7 @@
 // 不修改 Excalidraw 包本身。
 
 import { restoreElements } from "@excalidraw/excalidraw";
+import { installMouseInput } from "./tablet/mouse-input.js";
 
 const NATIVE_HANDLER = "tabletSketch";
 
@@ -30,6 +31,7 @@ const TOOL_MAP = {
 
 let api = null;
 let drawing = false;
+let strokeSource = null;
 
 function post(type, payload = {}) {
   try {
@@ -183,8 +185,19 @@ function ensureDrawTool() {
   }
 }
 
-function applyHidEvent(payload) {
+function applyHidEvent(payload, source = "pen") {
   if (!payload) return;
+
+  if (payload.t === "pen") {
+    if (payload.ph === "began") {
+      if (strokeSource && strokeSource !== source) return;
+      strokeSource = source;
+    } else if (payload.ph === "changed" || payload.ph === "ended") {
+      if (strokeSource !== source) return;
+    } else if (payload.ph === "hover" && strokeSource) {
+      return;
+    }
+  }
 
   // 采集器独占成功：系统指针不再跟随笔，界面需要自己画一个光标
   if (payload.t === "grab") {
@@ -196,7 +209,7 @@ function applyHidEvent(payload) {
   if (payload.t === "side" || payload.t === "aux") {
     window.dispatchEvent(
       new CustomEvent("tablet:keys", {
-        detail: { kind: payload.t, keys: payload.keys || [] }
+        detail: { kind: payload.t, keys: payload.keys || [], source }
       })
     );
     return;
@@ -204,29 +217,30 @@ function applyHidEvent(payload) {
 
   if (payload.t !== "pen") return;
 
-  // 压感 / 倾斜读数：只喂右上角的测试面板，不参与任何画布逻辑
-  window.dispatchEvent(
-    new CustomEvent("tablet:telemetry", {
-      detail: {
-        p: typeof payload.p === "number" ? payload.p : 0,
-        raw: typeof payload.px === "number" ? payload.px : 0,
-        tx: typeof payload.tx === "number" ? payload.tx : 0,
-        ty: typeof payload.ty === "number" ? payload.ty : 0,
-        ph: payload.ph
-      }
-    })
-  );
-
+  if (source === "pen") {
+    window.dispatchEvent(
+      new CustomEvent("tablet:telemetry", {
+        detail: {
+          p: typeof payload.p === "number" ? payload.p : 0,
+          raw: typeof payload.px === "number" ? payload.px : 0,
+          tx: typeof payload.tx === "number" ? payload.tx : 0,
+          ty: typeof payload.ty === "number" ? payload.ty : 0,
+          ph: payload.ph
+        }
+      })
+    );
+  }
 
   // 笔离开感应区：收起光标圆圈，别让它赖在屏幕上
   if (payload.ph === "leave") {
+    strokeSource = null;
     window.dispatchEvent(new CustomEvent("tablet:penpos", { detail: null }));
     return;
   }
 
   const target = canvasEl();
   if (!target) return;
-  if (payload.ph === "began") {
+  if (source === "pen" && payload.ph === "began") {
     ensureDrawTool();
     console.log("[pen] began", JSON.stringify(payload));
   }
@@ -234,20 +248,24 @@ function applyHidEvent(payload) {
   const x = rect.left + payload.x * rect.width;
   const y = rect.top + payload.y * rect.height;
 
-  window.dispatchEvent(
-    new CustomEvent("tablet:penpos", {
-      detail: {
-        x,
-        y,
-        nx: payload.x,
-        ny: payload.y,
-        down: payload.ph === "began" || payload.ph === "changed"
-      }
-    })
-  );
+  if (source === "pen") {
+    window.dispatchEvent(
+      new CustomEvent("tablet:penpos", {
+        detail: {
+          x,
+          y,
+          nx: payload.x,
+          ny: payload.y,
+          down: payload.ph === "began" || payload.ph === "changed"
+        }
+      })
+    );
 
-  if (payload.ph === "hover") {
-    window.dispatchEvent(new CustomEvent("tablet:hover", { detail: { x, y } }));
+    if (payload.ph === "hover") {
+      window.dispatchEvent(new CustomEvent("tablet:hover", { detail: { x, y } }));
+      return;
+    }
+  } else if (payload.ph === "hover") {
     return;
   }
 
@@ -261,6 +279,7 @@ function applyHidEvent(payload) {
       hit.dispatchEvent(makePointerEvent("pointerup", x, y, 0));
       hit.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true, clientX: x, clientY: y }));
     }
+    if (payload.ph === "ended" && strokeSource === source) strokeSource = null;
     return;
   }
 
@@ -268,6 +287,11 @@ function applyHidEvent(payload) {
     payload.ph === "began" ? "pointerdown" : payload.ph === "ended" ? "pointerup" : "pointermove";
   const pressure = payload.ph === "ended" ? 0 : shapePressure(payload.p || 0);
   target.dispatchEvent(makePointerEvent(type, x, y, pressure));
+  if (payload.ph === "ended" && strokeSource === source) strokeSource = null;
+}
+
+function feedVirtualPen(payload, source = "mouse") {
+  applyHidEvent(payload, source);
 }
 
 function sceneCenter() {
@@ -291,12 +315,26 @@ function stylePatchToAppState(patch) {
   if (patch.roughness !== undefined) next.currentItemRoughness = patch.roughness;
   if (patch.fontSize !== undefined) next.currentItemFontSize = patch.fontSize;
   if (patch.textAlign !== undefined) next.currentItemTextAlign = patch.textAlign;
+  if (patch.fontFamily !== undefined) next.currentItemFontFamily = patch.fontFamily;
+  if (patch.startArrowhead !== undefined) next.currentItemStartArrowhead = patch.startArrowhead;
+  if (patch.endArrowhead !== undefined) next.currentItemEndArrowhead = patch.endArrowhead;
   return next;
 }
 
 function stylePatchToElements(elements, selectedIds, patch) {
+  const selectedContainers = new Set(
+    elements
+      .filter((element) => selectedIds[element.id] && element.type !== "text")
+      .map((element) => element.id)
+  );
   return elements.map((element) => {
     if (!selectedIds[element.id]) return element;
+    if (element.locked) return element;
+    // 图片不参与样式修改；绑定文字不跟随形状一起变
+    if (element.type === "image") return element;
+    if (element.type === "text" && element.containerId && selectedContainers.has(element.containerId)) {
+      return element;
+    }
     const next = { ...element };
     if (patch.strokeColor !== undefined) next.strokeColor = patch.strokeColor;
     if (patch.backgroundColor !== undefined) next.backgroundColor = patch.backgroundColor;
@@ -307,6 +345,10 @@ function stylePatchToElements(elements, selectedIds, patch) {
     if (patch.roughness !== undefined) next.roughness = patch.roughness;
     if (patch.fontSize !== undefined && next.type === "text") next.fontSize = patch.fontSize;
     if (patch.textAlign !== undefined && next.type === "text") next.textAlign = patch.textAlign;
+    if (patch.fontFamily !== undefined && next.type === "text") next.fontFamily = patch.fontFamily;
+    if (patch.startArrowhead !== undefined) next.startArrowhead = patch.startArrowhead;
+    if (patch.endArrowhead !== undefined) next.endArrowhead = patch.endArrowhead;
+    if (patch.elbowed !== undefined) next.elbowed = patch.elbowed;
     if (patch.roundness !== undefined) {
       next.roundness = patch.roundness === "sharp" ? null : { type: 3 };
     }
@@ -506,14 +548,69 @@ function installTabletSketch(excalidrawApi) {
     getContext() {
       const state = api.getAppState();
       const selectedIds = state.selectedElementIds || {};
-      const selected = api
+      const rawSelected = api
         .getSceneElements()
         .filter((element) => selectedIds[element.id] && !element.isDeleted);
+      const containerIds = new Set(
+        rawSelected.filter((element) => element.type !== "text").map((element) => element.id)
+      );
+      // 图片不进入样式环；绑定文字不跟随形状一起改
+      const selected = rawSelected.filter(
+        (element) =>
+          element.type !== "image" &&
+          !(
+            element.type === "text" &&
+            element.containerId &&
+            containerIds.has(element.containerId)
+          )
+      );
       const kinds = [...new Set(selected.map((element) => element.type))];
       const first = selected[0] || null;
+
+      const fieldValues = (field) =>
+        selected.map((element) => {
+          if (field === "roundness") return element.roundness ? "round" : "sharp";
+          if (field === "arrowType") {
+            return element.elbowed ? "elbow" : element.roundness ? "round" : "sharp";
+          }
+          return element[field];
+        });
+      const mixed = {};
+      [
+        "strokeColor",
+        "backgroundColor",
+        "strokeWidth",
+        "strokeStyle",
+        "roughness",
+        "roundness",
+        "opacity",
+        "fontFamily",
+        "fontSize",
+        "textAlign",
+        "startArrowhead",
+        "endArrowhead",
+        "arrowType"
+      ].forEach((field) => {
+        mixed[field] =
+          selected.length > 1 &&
+          new Set(fieldValues(field).map((value) => JSON.stringify(value))).size > 1;
+      });
+
+      const arrowType = first
+        ? first.elbowed
+          ? "elbow"
+          : first.roundness
+            ? "round"
+            : "sharp"
+        : "sharp";
+
       return {
         tool: state.activeTool?.type || "selection",
         selectedTypes: kinds,
+        selectedCount: selected.length,
+        allLocked: selected.length > 0 && selected.every((element) => element.locked),
+        partialLocked: selected.some((element) => element.locked),
+        mixed,
         style: {
           strokeColor: first?.strokeColor ?? state.currentItemStrokeColor,
           backgroundColor: first?.backgroundColor ?? state.currentItemBackgroundColor,
@@ -524,6 +621,11 @@ function installTabletSketch(excalidrawApi) {
           roughness: first?.roughness ?? state.currentItemRoughness,
           fontSize: first?.fontSize ?? state.currentItemFontSize,
           textAlign: first?.textAlign ?? state.currentItemTextAlign,
+          fontFamily: first?.fontFamily ?? state.currentItemFontFamily,
+          startArrowhead: first?.startArrowhead ?? state.currentItemStartArrowhead ?? null,
+          endArrowhead: first?.endArrowhead ?? state.currentItemEndArrowhead ?? null,
+          elbowed: first?.elbowed ?? false,
+          arrowType,
           roundness: first ? (first.roundness ? "round" : "sharp") : "round"
         }
       };
@@ -555,6 +657,15 @@ function installTabletSketch(excalidrawApi) {
     /** 原生每帧批量推来的笔采样：[[x, y, pressure, phase], ...] */
     pushSamples,
 
+    feedPen(payload) {
+      feedVirtualPen(payload, "mouse");
+      return true;
+    },
+
+    isStrokeActive() {
+      return strokeSource !== null;
+    },
+
     // ---- 外观 ----
     setTabletChrome(on) {
       document.body.classList.toggle("tablet-mode", !!on);
@@ -565,6 +676,11 @@ function installTabletSketch(excalidrawApi) {
   };
 
   window.tabletSketch = bridge;
+
+  installMouseInput({
+    feedPen: (payload) => feedVirtualPen(payload, "mouse"),
+    isStrokeActive: () => strokeSource !== null
+  });
 
   // contextIsolation 下 preload 看不到 window 上的属性，只能用 DOM 事件跨世界传话。
   // 笔采样、自测、chrome 开关都从这三个事件进。
@@ -588,6 +704,9 @@ function installTabletSketch(excalidrawApi) {
   document.addEventListener("ts:menu-open", () => {
     window.dispatchEvent(new CustomEvent("tablet:open"));
   });
+  document.addEventListener("ts:open-style-ring", () => {
+    window.dispatchEvent(new CustomEvent("tablet:open-style-ring"));
+  });
   document.addEventListener("ts:selftest", () => runSelfTest());
   document.addEventListener("ts:chrome", (event) => {
     bridge.setTabletChrome(event.detail !== false);
@@ -596,6 +715,7 @@ function installTabletSketch(excalidrawApi) {
   // 跨 world 事件有可能在监听注册前就发出去了，这里直接切一次，
   // 保证原生 chrome 一定被藏起来、自绘界面一定出来。
   document.body.classList.add("tablet-mode");
+  if (window.tsEnv?.noAnim) document.body.classList.add("ts-no-anim");
 
   document.dispatchEvent(new CustomEvent("ts:ready"));
   post("tabletReady");

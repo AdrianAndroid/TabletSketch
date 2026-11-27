@@ -24,7 +24,7 @@ const GROUPS = [
       { id: "island", label: "浮岛", icon: "library" },
       { id: "more", label: "更多", icon: "more" },
       { id: "bubble", label: "气泡", icon: "style" },
-      { id: "radial", label: "径向", icon: "select" },
+      { id: "styleRing", label: "样式环", icon: "select" },
       { id: "pen", label: "笔", icon: "pen" },
       { id: "canvas", label: "画布", icon: "canvas" }
     ]
@@ -46,8 +46,6 @@ const DEFAULTS = {
   doubleColumn: true,
   fadeOnTouch: true,
   fadeOpacity: 20,
-  radialCount: 4,
-  radialHoverPreview: true,
   pressureGamma: 1.0,
   minStrokeWidth: 1,
   background: "plain",
@@ -215,24 +213,17 @@ export function SettingsWindow({ onClose, onClearCanvas }) {
       );
     }
 
-    if (page === "radial") {
+    if (page === "styleRing") {
       return (
-        <Section title="径向菜单" icon="select" note="外径随槽数变化：180 + 15n pt。">
-          <Field label="槽位数量" hint="默认 4，最多 8。中心 90pt 圆恒为取消。">
-            <input
-              type="range"
-              min="4"
-              max="8"
-              value={settings.radialCount}
-              onChange={(event) => patch({ radialCount: Number(event.target.value) })}
-            />
-            <span className="ts-field-value">{settings.radialCount}</span>
+        <Section title="样式环" icon="select" note="两级同心环，v1 固定取值，不提供配置。">
+          <Field label="颜色" hint="黑 / 红 / 绿 / 蓝 / 橙 / 灰，不做自定义取色器。">
+            <span className="ts-field-value">6 色</span>
           </Field>
-          <Field label="悬浮高亮">
-            <Toggle
-              value={settings.radialHoverPreview}
-              onChange={(v) => patch({ radialHoverPreview: v })}
-            />
+          <Field label="透明度" hint="100 / 90 / 80 / 70 / 50 / 30 / 20 / 10，不含 0。">
+            <span className="ts-field-value">8 档</span>
+          </Field>
+          <Field label="字号" hint="S / M / L / XL。">
+            <span className="ts-field-value">4 档</span>
           </Field>
         </Section>
       );

@@ -1,6 +1,10 @@
 # express-keys 变更（bootstrap-tablet-sketch）
 
-## ADDED Requirements
+## Purpose
+
+定义板载键的可映射输入集合、默认键位映射、映射持久化、按键去抖与重复触发规则，以及动作只在前台生效的作用域限制。
+
+## Requirements
 
 ### Requirement: 可映射输入集合
 
@@ -46,10 +50,10 @@ TabletSketch SHALL 支持 Deco 640 的 8 个板载虚拟快捷键和 2 个笔侧
 #### Scenario: 笔侧键默认表
 
 - **WHEN** 首次运行
-- **THEN** 笔侧键 1 MUST 在笔光标位置弹出径向菜单（默认 4 槽）
-- **AND** 笔侧键 2 MUST 呼出笔尖样式气泡（不经过径向菜单的直达路径）
+- **THEN** 笔侧键 1 MUST 在笔光标位置弹出两级样式环
+- **AND** 笔侧键 2 MUST 呼出笔尖样式气泡（不经过样式环的直达路径）
 - **AND** 橡皮 MUST 由浮岛「擦」格或板载键 5 承担，MUST NOT 再占用侧键
-- **AND** Excalidraw 原生右键菜单 MUST 降级为径向菜单里的「更多」槽，MUST NOT 再直接挂在侧键上
+- **AND** Excalidraw 原生右键菜单 MUST NOT 直接挂在侧键上；需要时由浮岛「更多 → 图层与链接…」合成一次 `contextmenu`
 
 #### Scenario: 恢复默认
 
