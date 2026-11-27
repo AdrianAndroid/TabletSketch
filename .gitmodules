@@ -1,4 +1,0 @@
-[submodule "Web/vendor/excalidraw"]
-	path = Web/vendor/excalidraw
-	url = https://github.com/AdrianAndroid/excalidraw.git
-	shallow = true

@@ -83,7 +83,7 @@ Electron 主进程 (Web/app/main.js)
         └── tablet/*          自绘 chrome：按键带、浮岛、样式环、设置
 ```
 
-- 前端基于 Excalidraw 0.18.1（`Web/vendor/excalidraw`，submodule，未改源码），原生 UI 由 CSS 隐藏，交互全部自绘。
+- 前端基于 npm 包 `@excalidraw/excalidraw@0.18.1`，不改源码；原生 UI 由 CSS 隐藏，交互全部自绘。
 - 打包产物 `Build/TabletSketch.app` 为手工组装，**未签名**。
 - 画板默认存到 `~/Pictures/TabletSketch/Sketches/`。
 
@@ -97,8 +97,7 @@ TabletSketch/
 │   └── TabletSketchCore/      # 报文解析、笔状态机
 ├── Web/
 │   ├── app/                   # Electron 外壳、preload、HID 桥
-│   ├── sketch/                # 前端包装层源码
-│   └── vendor/excalidraw/     # Excalidraw 0.18.1 submodule
+│   └── sketch/                # 前端包装层源码（依赖 npm 包 Excalidraw 0.18.1）
 ├── Resources/Sketch/          # 前端构建产物（由 vite 输出）
 ├── Scripts/make-app.sh        # 组装 .app
 ├── openspec/
