@@ -9,6 +9,7 @@
 2. **每处改动必须带 `// TS-FORK:` 注释**，写清为什么改。`grep -rn "TS-FORK" Web/vendor/excalidraw` 就是完整清单。
 3. **每处改动在这里登记一行**：文件、改了什么、为什么、对应哪个需求。
 4. 改动只提交在 submodule 里，主仓库记录指针；同时 `git format-patch` 导出到 `Docs/patches/` 做兜底。
+5. **所有源码改动只提交在专用分支 `tablet-sketch/0.18.1` 上，严禁动 fork 的 `main` 分支**：`main` 保持与上游一致，专门用来同步官方更新；改前先确认 submodule 处于专用分支（`git -C Web/vendor/excalidraw branch --show-current`）。
 
 ## 当前状态
 
