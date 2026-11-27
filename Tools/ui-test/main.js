@@ -88,7 +88,8 @@ const SCENARIO = String.raw`(async () => {
     const b = tele.getBoundingClientRect();
     const overlap = !(a.right < b.left || b.right < a.left || a.bottom < b.top || b.bottom < a.top);
     log("读数板与浮岛不重叠", !overlap, Math.round(b.left) + ".." + Math.round(b.right) + " vs " + Math.round(a.left) + ".." + Math.round(a.right));
-    log("读数板在浮岛对侧", b.right <= a.left || b.left >= a.right, "");
+    log("读数板固定在右上", b.left > window.innerWidth / 2 && b.top < 120,
+        Math.round(b.left) + "," + Math.round(b.top));
   } else {
     log("读数板与浮岛不重叠", false, "读数板不存在");
   }
@@ -113,7 +114,10 @@ const SCENARIO = String.raw`(async () => {
     pointer("pointermove", 70, g.y, window);
     pointer("pointerup", 70, g.y, window);
     await sleep(280);
-    log("拖动换到左侧", $(".ts-island").className.includes("ts-island--left"), before + " -> " + $(".ts-island").className);
+    const afterLeftDrag = $(".ts-island").getBoundingClientRect();
+    log("拖动被禁在右半区", afterLeftDrag.left >= window.innerWidth * 0.55 - 2,
+        Math.round(afterLeftDrag.left) + " vs " + Math.round(window.innerWidth * 0.55));
+    log("浮岛不吸附到左侧", !$(".ts-island").className.includes("ts-island--left"), before + " -> " + $(".ts-island").className);
     log("位置已持久化", !!localStorage.getItem("tablet.island.pos"), localStorage.getItem("tablet.island.pos") || "null");
 
     g = center($(".ts-island-grip"));
@@ -123,17 +127,12 @@ const SCENARIO = String.raw`(async () => {
     await sleep(260);
     log("拖动回到右侧", $(".ts-island").className.includes("ts-island--right"), $(".ts-island").className);
 
-    // 拖到左侧后，读数板应回到右侧
-    g = center($(".ts-island-grip"));
-    pointer("pointerdown", g.x, g.y, $(".ts-island-grip"));
-    pointer("pointermove", 70, g.y, window);
-    pointer("pointerup", 70, g.y, window);
-    await sleep(260);
+    // 读数板固定右上，不随工具岛换边
     const t2 = $(".ts-tele");
     if (t2) {
-      const ai = $(".ts-island").getBoundingClientRect();
       const bi = t2.getBoundingClientRect();
-      log("浮岛在左时读数板在右", bi.left >= ai.right, Math.round(bi.left) + " >= " + Math.round(ai.right));
+      log("读数板固定右上", bi.left > window.innerWidth / 2 && bi.top < 120,
+          Math.round(bi.left) + "," + Math.round(bi.top));
     }
     // 双击把手复位
     const gg = center($(".ts-island-grip"));
@@ -167,8 +166,9 @@ const SCENARIO = String.raw`(async () => {
     penClient("changed", 70, g.y);
     penClient("ended", 70, g.y);
     await sleep(300);
-    log("非选择工具下笔可拖动浮岛", $(".ts-island").className.includes("ts-island--left"),
-        toolBeforeDrag + " -> " + $(".ts-island").className);
+    const penDragged = $(".ts-island").getBoundingClientRect();
+    log("非选择工具下笔可拖动浮岛且禁左", penDragged.left >= window.innerWidth * 0.55 - 2,
+        toolBeforeDrag + " left=" + Math.round(penDragged.left));
     log("拖浮岛不在画布落笔", (window.tabletSketch?.getSceneElements?.().length || 0) === inkBeforeDrag,
         "before=" + inkBeforeDrag + " after=" + (window.tabletSketch?.getSceneElements?.().length || 0));
     log("笔拖浮岛不改写工具", window.tabletSketch?.getTool?.() === toolBeforeDrag,
@@ -388,6 +388,94 @@ const SCENARIO = String.raw`(async () => {
   log("样式环普通扇区实色", isSolidFill(radialFills[0]), radialFills[0] || "missing");
   log("样式环高亮扇区实色", isSolidFill(radialFills[1]), radialFills[1] || "missing");
   probeSvg.remove();
+
+  // ---------- 左侧样式浮动岛 ----------
+  window.tabletSketch?.clearSelection?.();
+  await sleep(500);
+  log("无选中时左侧样式岛隐藏", !$(".ts-left-style"), $(".ts-left-style") ? "still shown" : "hidden");
+
+  // 造一个矩形并选中，等 400ms 轮询刷新左岛上下文
+  const beforeRect = window.tabletSketch?.getSceneElements?.().length || 0;
+  click(cell(7)); // 矩形
+  await sleep(100);
+  const rs = $(".ts-stage")?.getBoundingClientRect();
+  if (rs) {
+    const rx = rs.left + rs.width * 0.32;
+    const ry = rs.top + rs.height * 0.38;
+    pointer("pointerdown", rx, ry, topAt(rx, ry));
+    pointer("pointermove", rx + 90, ry + 60, window);
+    pointer("pointerup", rx + 90, ry + 60, window);
+  }
+  await sleep(200);
+  window.tabletSketch?.selectAll?.();
+  await sleep(520);
+  const rectCount = window.tabletSketch?.getSceneElements?.().length || 0;
+  log("左岛测试前置：已有选中图元", rectCount > beforeRect && (window.tabletSketch?.getContext?.().selectedCount || 0) > 0,
+      beforeRect + " -> " + rectCount + " sel=" + (window.tabletSketch?.getContext?.().selectedCount || 0));
+  log("有选中时左侧样式岛显示", !!$(".ts-left-style"), $(".ts-left-style") ? "shown" : "missing");
+
+  const styleBtns = $$(".ts-left-style [data-ts-style-key]");
+  log("左岛显示类别按钮", styleBtns.length > 0, styleBtns.length + " 类");
+  const strokeBtn = styleBtns.find((b) => b.getAttribute("data-ts-style-key") === "stroke");
+  log("左岛含描边类别", !!strokeBtn, styleBtns.map((b) => b.getAttribute("data-ts-style-key")).join(","));
+
+  if (strokeBtn) {
+    const sr = center(strokeBtn);
+    // 快速掠过：停留不足 100ms 不展开
+    window.dispatchEvent(new CustomEvent("tablet:penpos", { detail: { x: sr.x, y: sr.y, down: false } }));
+    await sleep(45);
+    window.dispatchEvent(new CustomEvent("tablet:penpos", { detail: { x: sr.x + 500, y: sr.y, down: false } }));
+    await sleep(150);
+    log("笔掠过不展开取值条", !$(".ts-left-style-values"), $(".ts-left-style-values") ? "expanded" : "collapsed");
+
+    // 悬停 100ms：高亮并自动展开取值条（笔位置经 tablet:penpos，与真实笔同一事件源）
+    window.dispatchEvent(new CustomEvent("tablet:penpos", { detail: { x: sr.x, y: sr.y, down: false } }));
+    await sleep(200);
+    // 重新取节点：悬停会触发展开与重渲染，旧引用可能不是当前按钮。
+    const hoveredBtn = $$(".ts-left-style [data-ts-style-key]").find(
+      (b) => b.getAttribute("data-ts-style-key") === "stroke"
+    );
+    log("笔悬停类别按钮高亮", !!hoveredBtn?.classList.contains("is-hover"), hoveredBtn?.className || "missing");
+    const values = $(".ts-left-style-values");
+    log("悬停即展开取值条", !!values, values ? "expanded" : "missing");
+
+    // 点击已展开的类别：幂等保持展开，不收起
+    click(strokeBtn);
+    await sleep(120);
+    log("点击类别保持展开", !!$(".ts-left-style-values"), $(".ts-left-style-values") ? "expanded" : "collapsed");
+    if (values) {
+      const vals = $$(".ts-left-style-value");
+      log("取值条用现有预设", vals.length >= 6, vals.length + " 项");
+      const bg = getComputedStyle(values).backgroundColor;
+      log("取值条背景不透明", /^rgb\(/.test(bg || "") && !/^rgba\(/.test(bg || ""), bg);
+      log("取值条在 data-ts-ui 内", !!values.closest("[data-ts-ui]"), "");
+
+      // 笔悬停取值项应高亮（笔位置经 tablet:penpos，不靠 CSS :hover）
+      const hoverTarget = vals.find((v) => !v.classList.contains("is-current")) || vals[0];
+      const hr = center(hoverTarget);
+      window.dispatchEvent(new CustomEvent("tablet:penpos", { detail: { x: hr.x, y: hr.y, down: false } }));
+      await sleep(120);
+      log("笔悬停取值项高亮", hoverTarget.classList.contains("is-hover"), hoverTarget.className);
+      // 笔移回类别按钮，取值项高亮应清除
+      window.dispatchEvent(new CustomEvent("tablet:penpos", { detail: { x: sr.x, y: sr.y, down: false } }));
+      await sleep(120);
+      log("笔移开取值项清除高亮", !hoverTarget.classList.contains("is-hover"), hoverTarget.className);
+
+      // 点击第一个非当前取值，样式应改变且取值条收起
+      const target = vals.find((v) => !v.classList.contains("is-current")) || vals[0];
+      const strokeBefore = window.tabletSketch?.getContext?.().style?.strokeColor;
+      click(target);
+      await sleep(180);
+      const strokeAfter = window.tabletSketch?.getContext?.().style?.strokeColor;
+      log("点击取值应用样式", strokeAfter !== strokeBefore, strokeBefore + " -> " + strokeAfter);
+      log("点击取值后收起", !$(".ts-left-style-values"), $(".ts-left-style-values") ? "still expanded" : "collapsed");
+    }
+  }
+
+  // 无选中再隐藏，验证 hover 订阅随组件卸载
+  window.tabletSketch?.clearSelection?.();
+  await sleep(520);
+  log("清空选中后左岛隐藏", !$(".ts-left-style"), $(".ts-left-style") ? "still shown" : "hidden");
 
   document.dispatchEvent(new CustomEvent("ts:hid", { detail: { t: "pen", ph: "hover", x: 0.5, y: 0.5 } }));
   await sleep(160);

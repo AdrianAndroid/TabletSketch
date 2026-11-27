@@ -572,7 +572,8 @@ TabletSketch SHALL 在手写板模式下把窗口做成「一块板子」，而�
 - **WHEN** 一级切换到二级
 - **THEN** MUST 使用 90ms 交叉淡入，不依次
 - **WHEN** 外环展开
-- **THEN** 内环 MUST 在 90ms 内降到 0.4，外环 MUST 从内向外依次淡入
+- **THEN** 内圈 MUST 保持实色底色、仅在 90ms 内淡化其图标，MUST NOT 使用整体 `opacity` 造成透视
+- **AND** 外环 MUST 从内向外依次淡入
 - **WHEN** 关闭或应用样式
 - **THEN** MUST 立即关闭，不做退场动画
 - **AND** 命中测试 MUST 从第 0 帧开始，不等动画完成
@@ -615,20 +616,24 @@ TabletSketch SHALL 在手写板模式下把窗口做成「一块板子」，而�
 
 ### Requirement: 图元样式维度清单
 
-应用 SHALL 按图元类型提供对应的样式维度；完整矩阵见本变更 `design.md` §3。
+应用 SHALL 按图元类型提供对应的样式维度。图元与样式的对应关系 MUST 与 Excalidraw 原生样式面板一致，MUST NOT 把某图元不支持的样式显示为可调控件。
 
 #### Scenario: 基础图形
 
-- **WHEN** 选中矩形 / 菱形 / 椭圆
+- **WHEN** 选中矩形或菱形
 - **THEN** 可调维度 MUST 覆盖：描边、背景、描边宽度、边框样式、线条风格、边角、透明度
+- **WHEN** 选中椭圆
+- **THEN** 可调维度 MUST 覆盖：描边、背景、描边宽度、边框样式、线条风格、透明度
+- **AND** 椭圆 MUST NOT 出现边角
 
 #### Scenario: 直线与箭头
 
 - **WHEN** 选中直线
-- **THEN** 可调维度 MUST 覆盖：描边、背景、描边宽度、边框样式、线条风格、起点箭头、终点箭头、透明度
-- **AND** MUST NOT 出现 Arrow type
+- **THEN** 可调维度 MUST 覆盖：描边、背景、描边宽度、边框样式、线条风格、边角、透明度
+- **AND** 直线 MUST NOT 出现起点箭头、终点箭头或 Arrow type
 - **WHEN** 选中箭头
-- **THEN** 可调维度 MUST 覆盖：描边、背景、描边宽度、边框样式、线条风格、Arrow type、起点箭头、终点箭头、透明度
+- **THEN** 可调维度 MUST 覆盖：描边、描边宽度、边框样式、线条风格、Arrow type、起点箭头、终点箭头、透明度
+- **AND** 箭头 MUST NOT 出现背景
 - **AND** 直线与箭头 MUST 按元素类型分别取类，不得按截图位置硬编码
 
 #### Scenario: 自由笔与文字
@@ -643,8 +648,7 @@ TabletSketch SHALL 在手写板模式下把窗口做成「一块板子」，而�
 - **WHEN** 选中画框
 - **THEN** 可调维度 MUST 覆盖：透明度
 - **WHEN** 选中嵌入网页
-- **THEN** 可调维度 MUST 先按实际可写范围确认
-- **AND** 只有确认能写入且有可见效果的属性才 MUST 显示
+- **THEN** 可调维度 MUST 覆盖：描边、背景、描边宽度、边框样式、线条风格、边角、透明度
 
 ### Requirement: 样式控件必须可写
 
@@ -847,3 +851,78 @@ TabletSketch SHALL 在手写板模式下把窗口做成「一块板子」，而�
 - **WHEN** 二级样式环打开，内圈被弱化显示
 - **THEN** 内圈 MUST NOT 使用整体 `opacity` 造成透视
 - **AND** 弱化效果 MUST 通过实色底色与图标淡化表达
+
+### Requirement: 左侧样式浮动岛
+
+界面左侧 SHALL 提供一块常驻样式岛，在有选中图元时显示，让笔无需经侧键径向菜单即可浏览并修改当前选中图形的样式。左侧样式岛 MUST 与侧键样式环共用 `style-wheel.js` 的同一份样式定义，MUST NOT 新增样式能力或改变 Excalidraw 原生写入与撤销行为。
+
+#### Scenario: 无选中时隐藏
+
+- **WHEN** 当前没有选中图元，或选中集的样式类别交集为空
+- **THEN** 左侧样式岛 MUST NOT 显示（整岛隐藏）
+- **AND** 不得订阅笔位置事件，保持零常驻开销
+
+#### Scenario: 有选中时显示类别
+
+- **WHEN** 用户选中一个或多个图元
+- **THEN** 左侧样式岛 MUST 显示，类别与顺序 MUST 与侧键样式环的 `categoriesFor` 一致
+- **AND** 每个类别按钮 MUST 显示当前值预览：颜色类显示色块，其它显示 `formatCurrent` 文本
+
+#### Scenario: 笔悬停即展开取值条
+
+- **WHEN** 笔尖悬停某个类别按钮并停留达到 100ms
+- **THEN** 该按钮 MUST 高亮
+- **AND** 该类别的取值条 MUST 自动在该按钮右侧展开（无需点击类别按钮）
+- **AND** 取值项 MUST 来自 `buildLevel2` 的现有预设，当前值 MUST 高亮
+- **AND** 笔快速掠过（停留不足 100ms）MUST NOT 触发高亮，MUST NOT 展开取值条
+
+#### Scenario: 点击类别幂等
+
+- **WHEN** 笔或鼠标点击某个类别按钮
+- **THEN** 该类别的取值条 MUST 保持展开
+- **AND** MUST NOT 因点击已经展开的类别按钮而收起取值条
+
+#### Scenario: 移入取值条不收起
+
+- **WHEN** 笔从类别按钮移动到右侧取值条
+- **THEN** 取值条 MUST NOT 收起
+- **AND** 离开类别按钮与取值条两者后 200ms 才收起
+
+#### Scenario: 笔悬停取值项高亮
+
+- **WHEN** 笔尖悬停某个取值项（由 `tablet:penpos` 命中 `[data-ts-style-value]`）
+- **THEN** 该取值项 MUST 显示高亮，MUST 与鼠标悬停视觉一致
+- **AND** 高亮 MUST NOT 依赖 CSS `:hover`，因为笔位置是虚拟的
+- **AND** 笔移开取值项后高亮 MUST 清除
+
+#### Scenario: 点击取值应用
+
+- **WHEN** 用户点击某个取值项
+- **THEN** MUST 经 `setStyle` 立即应用该样式并收起取值条
+- **AND** 应用结果 MUST 与普通样式环一致地进入 Excalidraw 撤销栈
+- **AND** 取值项高亮 MUST 一并清除
+
+#### Scenario: 取值条不透明
+
+- **WHEN** 取值条展开
+- **THEN** 其背景 MUST 为实色，MUST NOT 透出下方画布图案、选中框或笔迹
+- **AND** 所有控件 MUST 位于 `[data-ts-ui]` 容器内，笔落点 MUST NOT 穿透到画布
+
+### Requirement: 右侧工具岛禁左
+
+右侧工具岛 SHALL 始终停留在屏幕右半区，MUST NOT 吸附或拖动到左侧，以避免与左侧样式岛碰撞。
+
+#### Scenario: 拖动下限
+
+- **WHEN** 用户向右或向左拖动右侧工具岛
+- **THEN** 其水平位置下限 MUST 被限制在窗口宽度的 55%
+- **AND** 松手吸附 MUST NOT 产生左侧吸附结果
+
+### Requirement: 读数板固定右上
+
+压感/倾斜读数板 SHALL 固定显示在屏幕右上角，MUST NOT 随右侧工具岛换边。
+
+#### Scenario: 工具岛位置变化
+
+- **WHEN** 右侧工具岛位置改变
+- **THEN** 读数板位置 MUST 保持在右上角不变

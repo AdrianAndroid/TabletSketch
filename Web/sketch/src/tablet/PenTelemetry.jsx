@@ -43,8 +43,9 @@ function PenTelemetryView({ data, onClose, side = "right" }) {
   const angle = tiltAngle(tiltX, tiltY);
   const idle = !data || data.ph === "leave";
 
+  // 读数板固定右上，不再随工具岛换边
   return (
-    <div className={`ts-tele${idle ? " is-idle" : ""}${side === "right" ? " ts-tele--left" : ""}`}>
+    <div className={`ts-tele${idle ? " is-idle" : ""}`}>
       <div className="ts-tele-head">
         <span>压感 / 倾斜</span>
         <button type="button" className="ts-tele-x" onClick={onClose} title="收起">
@@ -118,7 +119,7 @@ export function PenTelemetryChip({ onClick, side = "right" }) {
   return (
     <button
       type="button"
-      className={`ts-tele-chip${side === "right" ? " ts-tele--left" : ""}`}
+      className="ts-tele-chip"
       onClick={onClick}
       title="显示压感 / 倾斜读数"
     >

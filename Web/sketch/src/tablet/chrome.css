@@ -215,6 +215,148 @@ body.tablet-mode {
   color: #8a8f97;
 }
 
+/* ------------------------------------------------------- 左侧样式浮动岛 */
+
+.ts-left-style {
+  position: absolute;
+  z-index: 61;
+  left: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  pointer-events: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px 6px;
+  border-radius: 14px;
+  background: var(--ts-surface);
+  backdrop-filter: blur(16px) saturate(1.6);
+  -webkit-backdrop-filter: blur(16px) saturate(1.6);
+  border: 1px solid var(--ts-line);
+  box-shadow: var(--ts-shadow);
+  animation: ts-pop 0.14s ease-out;
+}
+
+.ts-left-style-title {
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  color: var(--ts-text-dim);
+  text-align: center;
+  padding-bottom: 2px;
+}
+
+.ts-left-style-row {
+  position: relative;
+  display: flex;
+}
+
+.ts-left-style-btn {
+  pointer-events: auto;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  min-width: 76px;
+  height: 34px;
+  padding: 0 8px;
+  border-radius: 9px;
+  transition: background 0.12s ease, color 0.12s ease;
+}
+
+.ts-left-style-btn svg {
+  flex: none;
+  width: 16px;
+  height: 16px;
+}
+
+.ts-left-style-btn:hover,
+.ts-left-style-btn.is-hover {
+  background: var(--ts-accent-soft);
+  color: var(--ts-accent);
+}
+
+.ts-left-style-btn.is-open {
+  background: var(--ts-accent);
+  color: #fff;
+}
+
+.ts-left-style-current {
+  flex: 1;
+  min-width: 0;
+  font-size: 11px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: left;
+}
+
+.ts-left-style-swatch {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  border-radius: 5px;
+  border: 1px solid var(--ts-line-strong);
+}
+
+.ts-left-style-swatch.is-none {
+  background: linear-gradient(135deg, transparent 44%, var(--ts-danger) 45%, var(--ts-danger) 55%, transparent 56%),
+    var(--ts-surface-solid);
+}
+
+/* 取值条：完全不透明，盖住画布；贴在类别按钮右侧，和按钮同属 data-ts-ui。 */
+.ts-left-style-values {
+  position: absolute;
+  z-index: 2;
+  left: calc(100% + 14px);
+  top: -4px;
+  pointer-events: auto;
+  display: flex;
+  flex-wrap: wrap;
+  align-content: flex-start;
+  gap: 4px;
+  width: 208px;
+  padding: 7px;
+  border-radius: 12px;
+  background: var(--ts-surface-solid);
+  border: 1px solid var(--ts-line);
+  box-shadow: var(--ts-shadow);
+  animation: ts-pop 0.12s ease-out;
+}
+
+/* 类别按钮与取值条之间的空白也归左岛，笔滑过去不算离开。 */
+.ts-left-style-values::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: -14px;
+  width: 14px;
+}
+
+.ts-left-style-value {
+  pointer-events: auto;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 40px;
+  height: 28px;
+  padding: 0 7px;
+  border-radius: 8px;
+  font-size: 11px;
+  color: var(--ts-text);
+  transition: background 0.12s ease, color 0.12s ease;
+}
+
+.ts-left-style-value:hover,
+.ts-left-style-value.is-hover {
+  background: var(--ts-accent-soft);
+}
+
+.ts-left-style-value.is-current {
+  background: var(--ts-accent);
+  color: #fff;
+}
+
 /* ---------------------------------------------------------------- 下拉面板 */
 
 .ts-panel {
@@ -1296,7 +1438,8 @@ body.tablet-mode {
 .ts-tele {
   position: absolute;
   top: 72px;
-  right: 14px;
+  /* 固定在右上，但给右侧工具岛让出宽度，避免视窗重叠 */
+  right: 128px;
   width: 202px;
   padding: 8px 11px 9px;
   border-radius: 12px;
@@ -1388,7 +1531,7 @@ body.tablet-mode {
 .ts-layer .ts-tele-chip {
   position: absolute;
   top: 72px;
-  right: 14px;
+  right: 128px;
   height: 22px;
   padding: 0 9px;
   border-radius: 11px;

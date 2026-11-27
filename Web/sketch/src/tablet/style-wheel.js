@@ -143,10 +143,13 @@ const ORDER = [
   "opacity"
 ];
 
+// 按 Excalidraw 原生样式面板逐类核对：椭圆无边角、直线有边角但无箭头端点、
+// 箭头无背景、自由笔有背景。左岛与侧键环共用这份映射。
 const SHAPE = ["stroke", "background", "strokeWidth", "strokeStyle", "roughness", "roundness", "opacity"];
-const LINE = ["stroke", "background", "strokeWidth", "strokeStyle", "roughness", "startArrow", "endArrow", "opacity"];
-const ARROW = ["stroke", "background", "strokeWidth", "strokeStyle", "roughness", "arrowType", "startArrow", "endArrow", "opacity"];
-const FREEDRAW = ["stroke", "strokeWidth", "opacity"];
+const ELLIPSE = SHAPE.filter((key) => key !== "roundness");
+const LINE = ["stroke", "background", "strokeWidth", "strokeStyle", "roughness", "roundness", "opacity"];
+const ARROW = ["stroke", "strokeWidth", "strokeStyle", "roughness", "arrowType", "startArrow", "endArrow", "opacity"];
+const FREEDRAW = ["stroke", "background", "strokeWidth", "opacity"];
 const TEXT = ["stroke", "fontFamily", "fontSize", "textAlign", "opacity"];
 const FRAME = ["opacity"];
 const EMBED = SHAPE;
@@ -154,7 +157,7 @@ const EMBED = SHAPE;
 const TYPE_CATEGORIES = {
   rectangle: SHAPE,
   diamond: SHAPE,
-  ellipse: SHAPE,
+  ellipse: ELLIPSE,
   line: LINE,
   arrow: ARROW,
   freedraw: FREEDRAW,
@@ -298,4 +301,30 @@ export function buildLevel2(category, context) {
 
 export function categoryLabel(category) {
   return CATEGORIES[category]?.label || "";
+}
+
+/**
+ * 左侧样式岛的一级类别按钮。与侧键样式环共用 CATEGORIES / categoriesFor，
+ * 额外补上当前值的色块与文本，供常驻可见的按钮直接预览。
+ */
+export function buildCategoryButtons(context) {
+  return categoriesFor(context?.selectedTypes, context).map((key) => {
+    const def = CATEGORIES[key];
+    const raw = rawCurrent(key, context);
+    const showColor = key === "stroke" || key === "background";
+    return {
+      key,
+      label: def.label,
+      icon: def.icon,
+      color: showColor ? (raw ?? (key === "background" ? "transparent" : undefined)) : undefined,
+      current: formatCurrent(key, context)
+    };
+  });
+}
+
+/** 左侧样式岛的取值项：合并溢出槽位，常驻条不分页。 */
+export function buildValueItems(category, context) {
+  const built = buildLevel2(category, context);
+  if (!built) return [];
+  return [...built.slots, ...built.outerSlots].filter((slot) => slot.kind === "value");
 }

@@ -7,6 +7,7 @@ import { SettingsWindow } from "./settings/SettingsWindow";
 import { saveScene, openScene } from "./scene-files";
 import { PadBand } from "./PadBand.jsx";
 import { PenTelemetry, PenTelemetryChip } from "./PenTelemetry.jsx";
+import { LeftStyleIsland } from "./LeftStyleIsland.jsx";
 import { buildLevel1, buildLevel2, categoryLabel } from "./style-wheel";
 import "./chrome.css";
 
@@ -58,12 +59,19 @@ function bridge() {
 const ISLAND_KEY = "tablet.island.pos";
 const ISLAND_MARGIN = 12;
 const ISLAND_TOP_MIN = 72;
+// 左侧留给常驻样式岛：右侧工具岛水平下限收紧到右半区，禁止吸附到左侧。
+const ISLAND_MIN_X_RATIO = 0.55;
+
+function islandMinX() {
+  return window.innerWidth * ISLAND_MIN_X_RATIO;
+}
 
 function clampIsland(pos, w, h) {
-  const maxX = Math.max(ISLAND_MARGIN, window.innerWidth - w - ISLAND_MARGIN);
+  const minX = Math.min(islandMinX(), Math.max(ISLAND_MARGIN, window.innerWidth - w - ISLAND_MARGIN));
+  const maxX = Math.max(minX, window.innerWidth - w - ISLAND_MARGIN);
   const maxY = Math.max(ISLAND_TOP_MIN, window.innerHeight - h - ISLAND_MARGIN);
   return {
-    x: Math.min(Math.max(pos.x, ISLAND_MARGIN), maxX),
+    x: Math.min(Math.max(pos.x, minX), maxX),
     y: Math.min(Math.max(pos.y, ISLAND_TOP_MIN), maxY)
   };
 }
@@ -73,7 +81,10 @@ function loadIslandPos() {
     const raw = localStorage.getItem(ISLAND_KEY);
     if (!raw) return null;
     const parsed = JSON.parse(raw);
-    if (Number.isFinite(parsed?.x) && Number.isFinite(parsed?.y)) return parsed;
+    if (Number.isFinite(parsed?.x) && Number.isFinite(parsed?.y)) {
+      // 旧版本可能存了左侧位置；读取时就夹回右半区，避免首帧闪现在样式岛一侧。
+      return { x: Math.max(parsed.x, islandMinX()), y: parsed.y };
+    }
   } catch {
     /* 损坏就回默认 */
   }
@@ -95,24 +106,19 @@ const CROSSHAIR_TOOLS = new Set([
 const SNAP_EDGE = 24;
 
 /**
- * 松手吸附：距任一边 24pt 内贴该边；否则只吸最近的一条竖边。
- * 浮岛是竖栏，水平拖动时不该突然贴到顶部。
+ * 松手吸附：距右边或上下边 24pt 内贴该边；否则贴右边。
+ * 浮岛是竖栏，水平拖动时不该突然贴到顶部；左侧为样式岛保留，不再吸附。
  */
 function snapIsland(pos, w, h) {
   const right = window.innerWidth - (pos.x + w) - ISLAND_MARGIN;
   const bottom = window.innerHeight - (pos.y + h) - ISLAND_MARGIN;
   const candidates = [
-    { d: pos.x - ISLAND_MARGIN, x: ISLAND_MARGIN, y: pos.y },
     { d: right, x: window.innerWidth - w - ISLAND_MARGIN, y: pos.y },
     { d: pos.y - ISLAND_TOP_MIN, x: pos.x, y: ISLAND_TOP_MIN },
     { d: bottom, x: pos.x, y: window.innerHeight - h - ISLAND_MARGIN }
   ];
   const near = candidates.filter((item) => item.d <= SNAP_EDGE);
-  const best = near.length
-    ? near.reduce((a, b) => (b.d < a.d ? b : a))
-    : pos.x - ISLAND_MARGIN <= right
-      ? candidates[0]
-      : candidates[1];
+  const best = near.length ? near.reduce((a, b) => (b.d < a.d ? b : a)) : candidates[0];
   return clampIsland({ x: best.x, y: best.y }, w, h);
 }
 
@@ -120,6 +126,9 @@ export function TabletShell({ onOpenSettings }) {
   const [openPanel, setOpenPanel] = useState(null);
   const [side, setSide] = useState("right");
   const [tool, setTool] = useState("selection");
+  // 左侧样式岛的上下文：低频刷新（随工具轮询），有选中才显示。
+  const [styleContext, setStyleContext] = useState(null);
+  const styleSigRef = useRef("");
   const [hidStatus, setHidStatus] = useState(() => window.__tsHidStatus || null);
   const [radial, setRadial] = useState(null);
   const [bubble, setBubble] = useState(null);
@@ -151,14 +160,28 @@ export function TabletShell({ onOpenSettings }) {
   const overflow = OVERFLOW_SLOTS;
   const crosshair = CROSSHAIR_TOOLS.has(tool);
 
-  // 工具状态跟着画布走（用户可能用快捷键切了工具）
+  // 工具状态跟着画布走（用户可能用快捷键切了工具）。
+  // 顺带低频刷新左侧样式岛的上下文：签名不变就不 setState。
   useEffect(() => {
-    const timer = setInterval(() => {
+    const refresh = () => {
       const api = bridge();
       if (!api) return;
       const next = api.getTool();
       if (next) setTool(next);
-    }, 400);
+      if (!api.getContext) return;
+      const context = api.getContext();
+      const sig = JSON.stringify([
+        context.selectedCount,
+        context.selectedTypes,
+        context.allLocked,
+        context.style
+      ]);
+      if (sig === styleSigRef.current) return;
+      styleSigRef.current = sig;
+      setStyleContext(context.selectedCount ? context : null);
+    };
+    const timer = setInterval(refresh, 400);
+    refresh();
     return () => clearInterval(timer);
   }, []);
 
@@ -818,6 +841,9 @@ export function TabletShell({ onOpenSettings }) {
         </div>
       </div>
 
+      {/* 左侧样式岛：有选中图元才显示，与侧键样式环共用定义 */}
+      {styleContext ? <LeftStyleIsland context={styleContext} /> : null}
+
       {panelNode}
 
       {radial ? (
@@ -850,10 +876,11 @@ export function TabletShell({ onOpenSettings }) {
         />
       ) : null}
 
+      {/* 读数板固定右上，不再随右侧工具岛换边 */}
       {teleOpen ? (
-        <PenTelemetry side={side} onClose={() => setTeleOpen(false)} />
+        <PenTelemetry side="right" onClose={() => setTeleOpen(false)} />
       ) : (
-        <PenTelemetryChip side={side} onClick={() => setTeleOpen(true)} />
+        <PenTelemetryChip side="right" onClick={() => setTeleOpen(true)} />
       )}
 
       {/* 唯一指示器：手写笔与鼠标共用。位置由 paintCursor 直写 DOM，这里只管形状。 */}
