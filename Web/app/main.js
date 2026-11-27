@@ -303,7 +303,7 @@ function startHid() {
     onEvent: (payload) => {
       if (payload?.t === "pen") penFrameCount += 1;
       // 原始报文与按键报告一定要落日志，否则按键编码无处对拍
-      else if (payload && (payload.t === "raw" || payload.t === "auxraw" || payload.t === "interface" || payload.t === "grabif" || payload.t === "aux" || payload.t === "side")) {
+      else if (payload && (payload.t === "raw" || payload.t === "auxraw" || payload.t === "interface" || payload.t === "grabif" || payload.t === "aux" || payload.t === "side" || payload.t === "dflags")) {
         console.log("[hid:raw]", JSON.stringify(payload));
       }
       win?.webContents.send("pen:event", payload);

@@ -6,6 +6,7 @@ import { StyleBubble } from "./StyleBubble";
 import { SettingsWindow } from "./settings/SettingsWindow";
 import { saveScene, openScene } from "./scene-files";
 import { PadBand } from "./PadBand.jsx";
+import { PenTelemetry, PenTelemetryChip } from "./PenTelemetry.jsx";
 import "./chrome.css";
 
 /** 浮岛默认槽位：前 8 格与板载键 1–8 一一对应。 */
@@ -61,6 +62,9 @@ export function TabletShell({ onOpenSettings }) {
   const [grabbed, setGrabbed] = useState(false);
   const [penPos, setPenPos] = useState(null);
   const [padFlash, setPadFlash] = useState(null);
+  // 压感 / 倾斜测试读数
+  const [telemetry, setTelemetry] = useState(null);
+  const [teleOpen, setTeleOpen] = useState(true);
   const [boards, setBoards] = useState([]);
   const [activeBoard, setActiveBoard] = useState(null);
   const dragRef = useRef(null);
@@ -79,6 +83,14 @@ export function TabletShell({ onOpenSettings }) {
     return () => window.removeEventListener("tablet:hover", onHover);
   }, []);
 
+  // 光标位置是唯一可信的"笔现在在哪"，每帧都同步给 menu 定位用。
+  // 只靠 hover 会停在最后一次悬停点，笔一动就对不上。
+  useEffect(() => {
+    if (penPos && Number.isFinite(penPos.x) && Number.isFinite(penPos.y)) {
+      penRef.current = { x: penPos.x, y: penPos.y };
+    }
+  }, [penPos]);
+
   // 工具状态跟着画布走（用户可能用快捷键切了工具）
   useEffect(() => {
     const timer = setInterval(() => {
@@ -88,6 +100,13 @@ export function TabletShell({ onOpenSettings }) {
       if (next) setTool(next);
     }, 400);
     return () => clearInterval(timer);
+  }, []);
+
+  // 压感 / 倾斜：只给右上角读数板用
+  useEffect(() => {
+    const onTele = (event) => setTelemetry(event.detail);
+    window.addEventListener("tablet:telemetry", onTele);
+    return () => window.removeEventListener("tablet:telemetry", onTele);
   }, []);
 
   // HID 状态、板载键、侧键
@@ -179,6 +198,7 @@ export function TabletShell({ onOpenSettings }) {
     if (!api) return;
     const hasSelection = api.hasSelection();
     const { x, y } = penRef.current;
+    console.log("[radial] open at", Math.round(x), Math.round(y));
     setOpenPanel(null);
     setBubble(null);
     setRadial({ x, y, hasSelection });
@@ -201,7 +221,10 @@ export function TabletShell({ onOpenSettings }) {
     if (context.selectedTypes.length === 1 && context.selectedTypes[0] === "image") return;
     setOpenPanel(null);
     setRadial(null);
-    setBubble({ context, x: penRef.current.x, y: penRef.current.y - 96 });
+    const bx = Math.min(Math.max(penRef.current.x, 176), window.innerWidth - 176);
+    const by = Math.min(Math.max(penRef.current.y - 96, 80), window.innerHeight - 160);
+    console.log("[bubble] open at", Math.round(bx), Math.round(by), "pen", Math.round(penRef.current.x), Math.round(penRef.current.y));
+    setBubble({ context, x: bx, y: by });
   }, []);
 
   // 菜单栏的「保存画板」「打开画板…」，以及操作后的提示条
@@ -496,6 +519,12 @@ export function TabletShell({ onOpenSettings }) {
           onClearCanvas={() => bridge()?.clearCanvas()}
         />
       ) : null}
+
+      {teleOpen ? (
+        <PenTelemetry data={telemetry} onClose={() => setTeleOpen(false)} />
+      ) : (
+        <PenTelemetryChip onClick={() => setTeleOpen(true)} />
+      )}
 
       {penPos ? (
         <div

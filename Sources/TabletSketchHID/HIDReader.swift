@@ -378,15 +378,15 @@ final class HIDReader {
         for event in events {
             switch event {
             case .hover:
-                Emit.pen(nx: nx, ny: ny, pressure: pressure, phase: "hover", barrel1: pen.barrel1, barrel2: pen.barrel2, eraser: pen.eraser)
+                Emit.pen(nx: nx, ny: ny, pressure: pressure, rawPressure: Int(pen.pressure), tiltX: Int(pen.tiltX), tiltY: Int(pen.tiltY), phase: "hover", barrel1: pen.barrel1, barrel2: pen.barrel2, eraser: pen.eraser)
             case .began:
                 // 刚接触时硬件压力常是 0 或个位数，交给页面会得到近乎透明的线。
                 // 起笔这一步先垫一个可见下限，后续压力上来自然加粗。
-                Emit.pen(nx: nx, ny: ny, pressure: max(pressure, 0.12), phase: "began", barrel1: pen.barrel1, barrel2: pen.barrel2, eraser: pen.eraser)
+                Emit.pen(nx: nx, ny: ny, pressure: max(pressure, 0.12), rawPressure: Int(pen.pressure), tiltX: Int(pen.tiltX), tiltY: Int(pen.tiltY), phase: "began", barrel1: pen.barrel1, barrel2: pen.barrel2, eraser: pen.eraser)
             case .changed:
-                Emit.pen(nx: nx, ny: ny, pressure: pressure, phase: "changed", barrel1: pen.barrel1, barrel2: pen.barrel2, eraser: pen.eraser)
+                Emit.pen(nx: nx, ny: ny, pressure: pressure, rawPressure: Int(pen.pressure), tiltX: Int(pen.tiltX), tiltY: Int(pen.tiltY), phase: "changed", barrel1: pen.barrel1, barrel2: pen.barrel2, eraser: pen.eraser)
             case .ended:
-                Emit.pen(nx: nx, ny: ny, pressure: 0, phase: "ended", barrel1: pen.barrel1, barrel2: pen.barrel2, eraser: pen.eraser)
+                Emit.pen(nx: nx, ny: ny, pressure: 0, rawPressure: Int(pen.pressure), tiltX: Int(pen.tiltX), tiltY: Int(pen.tiltY), phase: "ended", barrel1: pen.barrel1, barrel2: pen.barrel2, eraser: pen.eraser)
             case .leave:
                 Emit.line(["t": "pen", "ph": "leave"])
             }
@@ -420,16 +420,28 @@ final class HIDReader {
         let y = UInt32(body[3]) | (UInt32(body[4]) << 8)
         let rawPressure = UInt16(body[5]) | (UInt16(body[6]) << 8)
 
-        // 位定义在实机上按 "Tip / Barrel / In Range / Invert" 排；
+        // descriptor 里的位序：bit0 Tip / bit1 Barrel / bit2 Eraser / bit3 Invert。
+        // 侧键必须从这里读——旧实现取 lastKeys，那条路只有从不来报文的厂商通道会写。
         // 只要有一位非零就认为笔在感应区内，宁可多报悬停也不要漏。
         let inRange = flags != 0 || rawPressure > 0
         let tipDown = (flags & 0x01) != 0 || rawPressure > 0
+        let sideDown1 = (flags & 0x02) != 0
+        let sideDown2 = (flags & 0x04) != 0
         let invert = (flags & 0x08) != 0
 
         lastDigitizerAt = ProcessInfo.processInfo.systemUptime
         if lastFlags != flags {
             lastFlags = flags
-            Emit.line(["t": "dflags", "v": Int(flags), "p": Int(rawPressure)])
+            Emit.line([
+                "t": "dflags",
+                "v": Int(flags),
+                "bin": String(flags, radix: 2),
+                "tip": tipDown ? 1 : 0,
+                "s1": sideDown1 ? 1 : 0,
+                "s2": sideDown2 ? 1 : 0,
+                "inv": invert ? 1 : 0,
+                "p": Int(rawPressure)
+            ])
         }
         if !loggedFirstDigitizer {
             loggedFirstDigitizer = true
@@ -439,8 +451,8 @@ final class HIDReader {
         let pen = PenReport(
             inRange: inRange,
             tipDown: tipDown,
-            barrel1: lastKeys.barrel1,
-            barrel2: lastKeys.barrel2,
+            barrel1: sideDown1 || lastKeys.barrel1,
+            barrel2: sideDown2 || lastKeys.barrel2,
             eraser: invert || lastKeys.eraser,
             // 放大一倍对齐厂商通道的坐标系，下游不用改
             x: min(x * 2, PenReport.maxX),

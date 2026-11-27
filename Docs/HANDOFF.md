@@ -379,3 +379,46 @@ cd Web/sketch && npm run build && cd ../..
 Scripts/make-app.sh
 nohup Build/TabletSketch.app/Contents/MacOS/TabletSketch > /tmp/ts_app.log 2>&1 & disown
 ```
+
+---
+
+## 2026-11-27 · 笔侧键与压感读数（wire-pen-side-keys / pen-telemetry-panel）
+
+### 侧键：根因是"读错了通道"
+
+`handleDigitizer` 构造 `PenReport` 时写的是 `barrel1: lastKeys.barrel1`，而 `lastKeys` 只在 **Report ID 2**（厂商通道）分支里被赋值——那条通道零报文。于是侧键状态恒为 `false`，`side` 事件一次都没发出去。前端 `Shell.jsx` 的映射（`0`→径向菜单、`1`→样式气泡、`2`→橡皮）其实一直是好的，只是没人叫它。
+
+改成直接从 Digitizer 的 flags 字节取位：
+
+| 位 | 含义 | 用途 |
+|---|---|---|
+| `bit0` | Tip Switch | 落笔 |
+| `bit1` | Barrel Switch | 侧键 1 → 径向菜单 |
+| `bit2` | Eraser | 侧键 2 → 样式气泡（Deco 640 无笔尾橡皮，固件把第二侧键接在这里，**已实测确认**） |
+| `bit3` | Invert | 橡皮 |
+
+实测日志出现过 `{"keys":[0],"t":"side"}` 与 `{"keys":[1],"t":"side"}`，两键都能区分。用户确认「现在可以了」。
+
+另外两个连带修复：
+
+1. **菜单定位改用光标坐标**。原来 `penRef` 只在 `tablet:hover` 事件更新，笔一动菜单就飘；现在 `penPos` 每帧同步进 `penRef`，并且气泡位置做了窗口内 clamp。
+2. **`dflags` 进日志白名单**。上一轮它被 `main.js` 的 `onEvent` 过滤吞掉，导致看不到位变化——同一个坑踩了第二次，写在这里警示。
+
+### 倾斜：数据一直有，只是从来没发出去
+
+`PenReport.tiltX/tiltY` 从 Digitizer descriptor 的 `09 3D` / `09 3E` 解析得到，但 `Emit.pen` 只发 `x/y/p/ph/b1/b2/er`。现在补 `px`（原始压力 0..16383）、`tx`、`ty`。
+
+### 读数板
+
+右上角常驻卡片，`top: 72px`（必须在按键带 64pt 之下，否则挡住 8 号键），宽 202pt。三行：
+
+- `压力 1234 / 16383` + 进度条
+- `归一 / 出墨 0.12 → 0.42`（出墨值 = `0.35 + 0.65 × p^0.6`，与 `shapePressure` 一致）
+- `倾斜 X -12° · Y 33° · 倾角 35°`（倾角由 `atan(√(tan²x + tan²y))` 合成）
+
+笔离开时整卡置灰、数值显示 `—`。收起后右上角留「压感」胶囊重新打开（R0）。
+
+### 待确认
+
+- 倾斜单位是否真是「度」。当前按 HID Digitizer 规范当度数显示，实测 `X 17° / Y 13°` 与手抬角度大致吻合，但还需在 45°、60° 两个姿态上对一下。
+- 压力峰值是否真能到 16383。轻写约几百，正常书写常见 2000–8000。

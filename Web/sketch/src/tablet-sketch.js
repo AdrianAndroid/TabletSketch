@@ -204,6 +204,19 @@ function applyHidEvent(payload) {
 
   if (payload.t !== "pen") return;
 
+  // 压感 / 倾斜读数：只喂右上角的测试面板，不参与任何画布逻辑
+  window.dispatchEvent(
+    new CustomEvent("tablet:telemetry", {
+      detail: {
+        p: typeof payload.p === "number" ? payload.p : 0,
+        raw: typeof payload.px === "number" ? payload.px : 0,
+        tx: typeof payload.tx === "number" ? payload.tx : 0,
+        ty: typeof payload.ty === "number" ? payload.ty : 0,
+        ph: payload.ph
+      }
+    })
+  );
+
 
   // 笔离开感应区：收起光标圆圈，别让它赖在屏幕上
   if (payload.ph === "leave") {
