@@ -363,37 +363,51 @@ async function resolveLibraryItems() {
   return raw || [];
 }
 
-function insertLibraryItem(itemId) {
-  const state = api.getAppState();
+/** 直接从打包进前端的素材 JSON 找 item，不依赖 Excalidraw 的 library 是否已合并。 */
+function bundledLibraryItem(itemId) {
+  const libraries = window.__tsLibraries?.libraries || [];
+  for (const library of libraries) {
+    const item = (library.items || []).find((entry) => entry.id === itemId);
+    if (item?.elements?.length) return item;
+  }
+  return null;
+}
+
+function placeLibraryItem(item) {
+  if (!item?.elements?.length) return false;
   const center = sceneCenter();
+  const source = restoreElements(item.elements, null);
+  const minX = Math.min(...source.map((element) => element.x));
+  const minY = Math.min(...source.map((element) => element.y));
+  const maxX = Math.max(...source.map((element) => element.x + (element.width || 0)));
+  const maxY = Math.max(...source.map((element) => element.y + (element.height || 0)));
+  const dx = center.x - (minX + maxX) / 2;
+  const dy = center.y - (minY + maxY) / 2;
+
+  const placed = source.map((element) => ({
+    ...element,
+    id: `${element.id}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`,
+    x: element.x + dx,
+    y: element.y + dy
+  }));
+
+  api.updateScene({
+    elements: [...api.getSceneElements(), ...placed],
+    appState: {
+      selectedElementIds: Object.fromEntries(placed.map((element) => [element.id, true])),
+      activeTool: { type: "selection" }
+    },
+    captureUpdate: "IMMEDIATELY"
+  });
+  return true;
+}
+
+function insertLibraryItem(itemId) {
+  const bundled = bundledLibraryItem(itemId);
+  if (bundled) return Promise.resolve(placeLibraryItem(bundled));
   return resolveLibraryItems().then((items) => {
     const item = (items || []).find((entry) => entry.id === itemId);
-    if (!item || !item.elements?.length) return false;
-
-    const source = restoreElements(item.elements, null);
-    const minX = Math.min(...source.map((element) => element.x));
-    const minY = Math.min(...source.map((element) => element.y));
-    const maxX = Math.max(...source.map((element) => element.x + (element.width || 0)));
-    const maxY = Math.max(...source.map((element) => element.y + (element.height || 0)));
-    const dx = center.x - (minX + maxX) / 2;
-    const dy = center.y - (minY + maxY) / 2;
-
-    const placed = source.map((element) => ({
-      ...element,
-      id: `${element.id}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`,
-      x: element.x + dx,
-      y: element.y + dy
-    }));
-
-    api.updateScene({
-      elements: [...api.getSceneElements(), ...placed],
-      appState: {
-        selectedElementIds: Object.fromEntries(placed.map((element) => [element.id, true])),
-        activeTool: { type: "selection" }
-      },
-      captureUpdate: "IMMEDIATELY"
-    });
-    return true;
+    return placeLibraryItem(item);
   });
 }
 
@@ -416,6 +430,10 @@ function installTabletSketch(excalidrawApi) {
     hasSelection() {
       const selected = api.getAppState().selectedElementIds || {};
       return Object.keys(selected).some((id) => selected[id]);
+    },
+    clearSelection() {
+      api.updateScene({ appState: { selectedElementIds: {} } });
+      return true;
     },
 
     // ---- 场景 ----

@@ -201,10 +201,43 @@ const SCENARIO = String.raw`(async () => {
   click(cell(2));
   await sleep(400);
   log("点「素材」打开面板", (panelTitle() || "").startsWith("素材"), panelTitle());
+
+  // 素材详情：缩略图 + 点击直接贴到画布
+  const firstLibrary = $$(".ts-lib")[0];
+  if (firstLibrary) {
+    click(firstLibrary);
+    let waited = 0;
+    while (waited < 6000 && !$$(".ts-lib-thumb svg").length) {
+      await sleep(200);
+      waited += 200;
+    }
+    log("素材缩略图渲染", $$(".ts-lib-thumb svg").length > 0, $$(".ts-lib-thumb svg").length + " / " + $$(".ts-lib-item").length);
+    const beforeCount = window.tabletSketch?.getSceneElements?.().length || 0;
+    const firstItem = $(".ts-lib-item");
+    if (firstItem) {
+      const r = center(firstItem);
+      const hit = topAt(r.x, r.y);
+      log("素材项在最上层可点", !!hit?.closest?.(".ts-lib-item"), hit?.className || hit?.tagName || "null");
+      click(hit || firstItem);
+      await sleep(600);
+      const afterCount = window.tabletSketch?.getSceneElements?.().length || 0;
+      log("点击素材贴到画布", afterCount > beforeCount, beforeCount + " -> " + afterCount);
+      log("插入后进入选中态", (window.tabletSketch?.getContext?.().selectedCount || 0) > 0, "");
+    } else {
+      log("点击素材贴到画布", false, "详情里没有素材项");
+    }
+  } else {
+    log("素材缩略图渲染", false, "素材库列表为空");
+  }
   closePanel();
 
   // ---------- 更多面板 ----------
   closePanel();
+  // 清掉刚才插入素材的选中，验证「无选中置灰」
+  window.tabletSketch?.clearSelection?.();
+  await sleep(180);
+  log("清空选中", (window.tabletSketch?.getContext?.().selectedCount || 0) === 0,
+      window.tabletSketch?.getContext?.().selectedCount);
   click(cell(15));
   await sleep(160);
   log("点「更多」打开面板", panelTitle() === "更多", panelTitle());

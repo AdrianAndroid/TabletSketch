@@ -526,3 +526,11 @@ Web/app/node_modules/.bin/electron Tools/ui-test/main.js
 ```
 
 覆盖：手柄命中、左右换边、双击复位、读数板避让、面板层级、设置入口、11 个工具格、更多面板动作与置灰、样式环页只读。当前 40/40 通过。
+
+## 2026-11-27 · 素材缩略图与点击插入（fix-library-preview-insert）
+
+- 素材项改为「`exportToSvg` 现渲染的缩略图 + 名称」，69 项离线预览。
+- `insertLibraryItem` 先查打包进前端的 `window.__tsLibraries`，不再依赖 Excalidraw 素材侧栏是否合并；插入后自动选中。
+- `.ts-lib-detail` 补 `z-index: 64`，否则点击全被 `.ts-scrim` 吃掉。
+- 新增 `clearSelection()` 桥方法。
+- 回归 49/49 通过；素材详情可在 `Tools/ui-test/main.js` 里复跑。

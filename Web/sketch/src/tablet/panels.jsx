@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { exportToSvg } from "@excalidraw/excalidraw";
 import { Icons } from "./icons";
 import { saveScene, openScene } from "./scene-files";
 
@@ -130,6 +131,42 @@ export function CanvasPanel({ side, onClose, boards, active, onSelect, onCreate 
 
 // ---------------------------------------------------------------- 素材
 
+function LibraryThumb({ item }) {
+  const hostRef = useRef(null);
+
+  useEffect(() => {
+    let alive = true;
+    const host = hostRef.current;
+    if (!host) return;
+    exportToSvg({
+      elements: item.elements,
+      appState: { exportBackground: false, viewBackgroundColor: "#ffffff" },
+      files: null,
+      exportPadding: 6
+    })
+      .then((svg) => {
+        if (!alive || !hostRef.current) return;
+        svg.removeAttribute("width");
+        svg.removeAttribute("height");
+        svg.setAttribute("preserveAspectRatio", "xMidYMid meet");
+        svg.style.width = "auto";
+        svg.style.height = "auto";
+        svg.style.maxWidth = "100%";
+        svg.style.maxHeight = "100%";
+        hostRef.current.replaceChildren(svg);
+      })
+      .catch(() => {
+        if (alive && hostRef.current) hostRef.current.textContent = "预览失败";
+      });
+    return () => {
+      alive = false;
+      hostRef.current?.replaceChildren();
+    };
+  }, [item]);
+
+  return <span className="ts-lib-thumb" ref={hostRef} aria-hidden="true" />;
+}
+
 export function LibraryPanel({ side, onClose }) {
   const libraries = window.__tsLibraries?.libraries ?? [];
   const [activeId, setActiveId] = useState(null);
@@ -173,9 +210,15 @@ export function LibraryPanel({ side, onClose }) {
                   type="button"
                   className="ts-lib-item"
                   title={item.name}
-                  onClick={() => window.tabletSketch?.insertLibraryItem(item.id)}
+                  onClick={async () => {
+                    const ok = await window.tabletSketch?.insertLibraryItem(item.id);
+                    window.dispatchEvent(
+                      new CustomEvent("ts:toast", { detail: ok ? "已插入素材" : "素材插入失败" })
+                    );
+                  }}
                 >
-                  {item.name || "未命名"}
+                  <LibraryThumb item={item} />
+                  <span className="ts-lib-item-name">{item.name || "未命名"}</span>
                 </button>
               ))}
             </div>
