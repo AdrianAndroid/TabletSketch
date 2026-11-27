@@ -255,6 +255,21 @@ const SCENARIO = String.raw`(async () => {
   log("无选中时「样式环」置灰", !!styleRow && styleRow.classList.contains("is-disabled"), styleRow?.className || "missing");
   closePanel();
 
+  // ---------- 工具光标 ----------
+  window.dispatchEvent(new CustomEvent("tablet:mousepos", { detail: { x: 500, y: 300, down: false } }));
+  document.dispatchEvent(new CustomEvent("ts:hid", { detail: { t: "pen", ph: "hover", x: 0.5, y: 0.5 } }));
+  await sleep(150);
+  window.tabletSketch.setTool("rectangle");
+  await sleep(150);
+  log("矩形工具鼠标显示十字", !!$(".ts-mouse-dot.is-cross"), $(".ts-mouse-dot")?.className || "missing");
+  log("矩形工具笔显示十字", !!$(".ts-pen-cursor.is-cross"), $(".ts-pen-cursor")?.className || "missing");
+  log("系统光标未被隐藏", getComputedStyle(document.body).cursor !== "none", getComputedStyle(document.body).cursor);
+
+  click(cell(6));
+  await sleep(250);
+  log("选择工具鼠标回到圆点", !$(".ts-mouse-dot.is-cross"), $(".ts-mouse-dot")?.className || "missing");
+  log("选择工具笔回到圆环", !$(".ts-pen-cursor.is-cross"), $(".ts-pen-cursor")?.className || "missing");
+
   // ---------- 双排布局不溢出 ----------
   const ir = $(".ts-island").getBoundingClientRect();
   log("浮岛在窗口内", ir.top >= 0 && ir.bottom <= window.innerHeight && ir.left >= 0 && ir.right <= window.innerWidth,

@@ -75,6 +75,18 @@ function loadIslandPos() {
   return null;
 }
 
+/** 这些工具需要精确落点：指示器显示十字准星，而不是圆点 / 圆环。 */
+const CROSSHAIR_TOOLS = new Set([
+  "freedraw",
+  "rectangle",
+  "diamond",
+  "ellipse",
+  "arrow",
+  "line",
+  "text",
+  "image"
+]);
+
 const SNAP_EDGE = 24;
 
 /**
@@ -131,6 +143,7 @@ export function TabletShell({ onOpenSettings }) {
 
   const visible = DEFAULT_SLOTS.slice(0, VISIBLE_LIMIT);
   const overflow = DEFAULT_SLOTS.slice(VISIBLE_LIMIT);
+  const crosshair = CROSSHAIR_TOOLS.has(tool);
 
   // 记住笔的悬停位置，菜单弹出时贴着笔尖
   useEffect(() => {
@@ -805,14 +818,14 @@ export function TabletShell({ onOpenSettings }) {
 
       {penPos ? (
         <div
-          className={`ts-pen-cursor${penPos.down ? " is-down" : ""}`}
+          className={`ts-pen-cursor${penPos.down ? " is-down" : ""}${crosshair ? " is-cross" : ""}`}
           style={{ transform: `translate3d(${penPos.x}px, ${penPos.y}px, 0)` }}
         />
       ) : null}
 
       {mousePos ? (
         <div
-          className={`ts-mouse-dot${mousePos.down ? " is-down" : ""}`}
+          className={`ts-mouse-dot${mousePos.down ? " is-down" : ""}${crosshair ? " is-cross" : ""}`}
           style={{ transform: `translate3d(${mousePos.x}px, ${mousePos.y}px, 0)` }}
         />
       ) : null}
