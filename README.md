@@ -55,11 +55,13 @@
 ```bash
 swift build -c release                 # 编译 Swift HID 采集器
 (cd Web/sketch && npm install && npm run build)   # 构建前端到 Resources/Sketch
-Scripts/make-app.sh                    # 组装 Build/TabletSketch.app
-open Build/TabletSketch.app
+Scripts/make-app.sh                    # 组装 Build/TabletSketch.app（未签名）
+Scripts/install-local.sh               # 固定身份签名 + 覆盖安装到 /Applications 并启动
 ```
 
-首次运行需要给 App 授权「输入监控」（系统设置 → 隐私与安全性 → 输入监控）。
+签名身份固定为钥匙串里的 `MacAppControlDeck Self-Signed`（与主项目同一张本机自签证书），不签名不安装。找不到证书会直接失败，不会悄悄降级成 ad-hoc——否则每次重建「输入监控」授权都要重新点一遍。安装后可用 `codesign -d --requirements - /Applications/TabletSketch.app` 确认 designated requirement 是 `certificate root`，不是 `cdhash`。
+
+首次运行需要给 App 授权「输入监控」（系统设置 → 隐私与安全性 → 输入监控）。固定签名后这个授权可以长期复用。
 
 调试开关：
 

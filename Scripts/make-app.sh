@@ -40,4 +40,5 @@ cp "$ROOT/Resources/AppIcon.icns" "$APP/Contents/Resources/AppIcon.icns"
 
 # 去掉默认的 Electron 图标资源目录里多余的没用的东西不管，保持原样
 echo "前端产物: $(ls -t "$ROOT/Resources/Sketch/assets"/index-*.js | head -1 | xargs basename)"
-echo "已生成 $APP"
+echo "已生成 ${APP}（未签名）"
+echo "日常安装请用：Scripts/install-local.sh（固定身份签名 + 覆盖安装到 /Applications）"

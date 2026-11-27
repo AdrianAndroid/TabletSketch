@@ -125,3 +125,21 @@ TabletSketch 是独立项目，默认不修改 `MacAppControlDeck`。
 4. 无设备时只需回退到鼠标模式并提示，不需要做"支持任意 HID 数位板"的兜底。
 5. 真要接第二台设备，属于新需求：必须另立 OpenSpec 变更并单独评估，不能在日常改动里顺手塞进去。
 6. 提测只在这台板子上验证，不以"其他设备可能有问题"为阻塞理由。
+
+## R10. 固定签名身份，禁止 ad-hoc 安装
+
+TCC「输入监控」授权按签名身份匹配，身份一变就要重新授权。本机日常安装必须用同一个固定身份。
+
+### 强制清单
+
+1. 固定身份：`MacAppControlDeck Self-Signed`（与主项目同一张本机自签证书）。Bundle ID 保持 `com.zhaojian.tabletsketch`。
+2. 本机安装统一走 `Scripts/install-local.sh`；禁止 `codesign --sign -` 手工 ad-hoc 后再装进 `/Applications`。
+3. `Scripts/sign-app.sh` 找不到证书时必须失败，不得静默降级为 ad-hoc；只有显式 `TS_ALLOW_ADHOC=1` 才允许，并在说明里写明会重置 TCC。
+4. 签名后必须校验 designated requirement：稳定形态是 `identifier "com.zhaojian.tabletsketch" and certificate root = H"…"`，不稳定形态是只有 `cdhash H"…"`。
+5. 禁止改 Bundle ID、禁止开 hardened runtime（Electron 需要额外 entitlements，本机自用无必要）。
+6. 签名、安装流程的变更必须另立 OpenSpec 变更，并同步本文件。
+
+### 反例
+
+- 直接用 `open Build/TabletSketch.app` 当日常版本 → 每次重建都要重新授权。
+- 签名失败后自动退回 ad-hoc 继续安装 → 授权静默失效。
