@@ -15,19 +15,20 @@ const NATIVE_HANDLER = "tabletSketch";
 /** 合成指针的固定 id，用来在 patch 里识别"这是我们自己造的"。 */
 const INJECTED_POINTER_ID = 8801;
 
-const TOOL_MAP = {
-  pen: "freedraw",
-  eraser: "eraser",
-  hand: "hand",
-  select: "selection",
-  rectangle: "rectangle",
-  ellipse: "ellipse",
-  arrow: "arrow",
-  line: "line",
-  text: "text",
-  diamond: "diamond",
-  image: "image"
-};
+/** 画布认可的工具名。浮岛直接传最终值，不再经过 id → 工具名的映射。 */
+const TOOL_TYPES = new Set([
+  "freedraw",
+  "eraser",
+  "hand",
+  "selection",
+  "rectangle",
+  "ellipse",
+  "arrow",
+  "line",
+  "text",
+  "diamond",
+  "image"
+]);
 
 let api = null;
 let drawing = false;
@@ -405,9 +406,8 @@ function installTabletSketch(excalidrawApi) {
   const bridge = {
     // ---- 工具 ----
     setTool(name) {
-      const type = TOOL_MAP[name];
-      if (!type) return false;
-      api.setActiveTool({ type });
+      if (!TOOL_TYPES.has(name)) return false;
+      api.setActiveTool({ type: name });
       return true;
     },
     getTool() {

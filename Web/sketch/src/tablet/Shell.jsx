@@ -659,9 +659,9 @@ export function TabletShell({ onOpenSettings }) {
       ) : null}
 
       {teleOpen ? (
-        <PenTelemetry data={telemetry} onClose={() => setTeleOpen(false)} />
+        <PenTelemetry data={telemetry} side={side} onClose={() => setTeleOpen(false)} />
       ) : (
-        <PenTelemetryChip onClick={() => setTeleOpen(true)} />
+        <PenTelemetryChip side={side} onClick={() => setTeleOpen(true)} />
       )}
 
       {penPos ? (

@@ -109,7 +109,8 @@ TabletSketch/
 │   ├── research/              # Deco 640 协议预研
 │   └── images/                # README 配图
 ├── Tools/DecoProbe.swift      # 只读 HID 探针
-└── Tools/make-icon.swift      # 自绘应用图标（生成 Resources/AppIcon.icns）
+├── Tools/make-icon.swift      # 自绘应用图标（生成 Resources/AppIcon.icns）
+└── Tools/ui-test/main.js      # 离屏 UI 回归（不显示窗口、不启动 HID）
 ```
 
 ## OpenSpec 工作流

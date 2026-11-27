@@ -509,3 +509,20 @@ iconutil -c icns /tmp/AppIcon.iconset -o Resources/AppIcon.icns
 - 尺寸链 16–1024，由 1024 主图缩放；`--variant B/C` 只是备选配色，不参与默认产物。
 - 改图标只改 `Tools/make-icon.swift`，禁止手改 `.icns`。
 - 未签名应用的 Dock 图标可能被系统缓存，验收前 `killall Dock` 或重登一次。
+
+## 2026-11-27 · 浮岛交互修复（fix-island-interactions）
+
+离屏回归一次抓出三个真问题：
+
+1. **拖动把手被读数板盖住**：窗口 760 时浮岛顶部 159，读数板 72..182，正好压住 12pt 手柄。改为读数板与 chip 始终在浮岛对侧。
+2. **面板按钮全部点不动**：`.ts-scrim` z-index 60 高于浮岛/面板（auto），点击落到遮罩上。层级改为 scrim 60 < 浮岛 62 < 面板 64。
+3. **「笔」「选」两格无效**：`setTool` 用 `TOOL_MAP[name]`，表键是 `pen/select`，浮岛传 `freedraw/selection`，查表永远失败。改为合法工具集合校验。
+
+回归命令（隐藏窗口、独立 userData、不启动 HID、不抢焦点）：
+
+```bash
+PATH=/Users/zhaojian/.nvm/versions/node/v24.22.2/bin:$PATH npm --prefix Web/sketch run build
+Web/app/node_modules/.bin/electron Tools/ui-test/main.js
+```
+
+覆盖：手柄命中、左右换边、双击复位、读数板避让、面板层级、设置入口、11 个工具格、更多面板动作与置灰、样式环页只读。当前 40/40 通过。

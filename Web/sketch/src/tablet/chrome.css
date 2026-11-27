@@ -112,6 +112,7 @@ body.tablet-mode {
 
 .ts-island {
   position: absolute;
+  z-index: 62;
   top: 50%;
   transform: translateY(-50%);
   pointer-events: auto;
@@ -189,6 +190,7 @@ body.tablet-mode {
 
 .ts-panel {
   position: absolute;
+  z-index: 64;
   top: 50%;
   transform: translateY(-50%);
   pointer-events: auto;
@@ -1244,6 +1246,11 @@ body.tablet-mode {
   transition: opacity 0.2s ease;
 }
 
+.ts-tele.ts-tele--left {
+  left: 14px;
+  right: auto;
+}
+
 .ts-tele.is-idle {
   opacity: 0.6;
 }
@@ -1331,6 +1338,11 @@ body.tablet-mode {
 .ts-layer .ts-tele-chip:hover {
   color: var(--ts-text);
   border-color: #d5dbe5;
+}
+
+.ts-layer .ts-tele-chip.ts-tele--left {
+  left: 14px;
+  right: auto;
 }
 
 @media (prefers-color-scheme: dark) {

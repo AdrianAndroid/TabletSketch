@@ -34,7 +34,7 @@ function tiltAngle(tiltX, tiltY) {
   return Math.atan(t) / DEG;
 }
 
-export function PenTelemetry({ data, onClose }) {
+export function PenTelemetry({ data, onClose, side = "right" }) {
   const p = Math.max(0, Math.min(1, data?.p || 0));
   const raw = Math.round(data?.raw || 0);
   const tiltX = Math.round(data?.tx || 0);
@@ -44,7 +44,7 @@ export function PenTelemetry({ data, onClose }) {
   const idle = !data || data.ph === "leave";
 
   return (
-    <div className={`ts-tele${idle ? " is-idle" : ""}`}>
+    <div className={`ts-tele${idle ? " is-idle" : ""}${side === "right" ? " ts-tele--left" : ""}`}>
       <div className="ts-tele-head">
         <span>压感 / 倾斜</span>
         <button type="button" className="ts-tele-x" onClick={onClose} title="收起">
@@ -82,9 +82,14 @@ export function PenTelemetry({ data, onClose }) {
 }
 
 /** 面板收起后的重新打开入口（R0：用户可见功能必须有内置入口） */
-export function PenTelemetryChip({ onClick }) {
+export function PenTelemetryChip({ onClick, side = "right" }) {
   return (
-    <button type="button" className="ts-tele-chip" onClick={onClick} title="显示压感 / 倾斜读数">
+    <button
+      type="button"
+      className={`ts-tele-chip${side === "right" ? " ts-tele--left" : ""}`}
+      onClick={onClick}
+      title="显示压感 / 倾斜读数"
+    >
       压感
     </button>
   );
