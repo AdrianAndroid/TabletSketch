@@ -83,7 +83,7 @@ Web/app/                          Electron 外壳
   preload.js                      主世界与页面的唯一通道（CustomEvent）
   hid-bridge.js                   spawn HID 子进程，按行解析，断线重试
   （文件存取走 ipcMain.handle：ts:save-scene / ts:open-scene / ts:reveal-sketches）
-Web/sketch/                       前端包装层（依赖 npm 包 @excalidraw/excalidraw@0.18.1，未改源码）
+Web/vendor/excalidraw/            submodule，v0.18.1 (a2ec288)
 Resources/Sketch/                 前端构建产物（别手改）
 Scripts/make-app.sh               组装 .app
 Build/TabletSketch.app            打包产物
@@ -162,7 +162,7 @@ HID 状态通常先到。`preload` 缓存最后一帧，在 `ts:ready` 时补发
 4. **素材库点击插入没验证**。`insertLibraryItem` 在桥里，`LibraryPanel` 的二级详情已渲染（左侧详情 + 两列素材），但点某一项往画布插入这一步没实测。
 5. **样式气泡只覆盖颜色 / 线宽 / 透明**。填充色、线型（实线虚线）、箭头样式都没有。设计上这三样后续按需加，保持恒三行。
 6. **设置项只写不读**。所有开关存进 localStorage，但除了主题跟随系统之外，没有代码去读它们。
-7. **原生 chrome 靠 CSS 隐藏，没改源码**。现在是 `body.tablet-mode` + 一份 CSS 隐藏清单把原生 chrome 藏掉，Excalidraw 一行没改（走 npm 包）。`Docs/fork-changes.md` 已废弃，只保留上游坑记录。
+7. **M5 的 fork 改造没动源码**。现在是 `body.tablet-mode` + 一份 CSS 隐藏清单把原生 chrome 藏掉，`Web/vendor/excalidraw` 一行没改。真删代码是后面的事，`Docs/fork-changes.md` 里记了六处计划改动。
 8. **图标、签名、公证**。`.app` 用的是 Electron 默认图标；没有签名，拷到别的机器要右键打开。
 
 ---

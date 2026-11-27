@@ -1,8 +1,4 @@
-# fork 改动清单（已废弃）
-
-> **2026-11-27 废弃**：本文件设想的「fork Excalidraw 源码再改」路线已取消，见 `openspec/changes/archive/2026-11-27-drop-unused-excalidraw-fork/`。
-> submodule `Web/vendor/excalidraw` 与 `.gitmodules` 已删除，前端继续使用 npm 包 `@excalidraw/excalidraw@0.18.1`，**不修改 Excalidraw 源码**。
-> 正文与「计划中的改动」仅作历史参考；**「已知的上游坑」一节仍然有效**，那是实际踩到的行为，与是否改源码无关。
+# fork 改动清单
 
 本文件记录对 `Web/vendor/excalidraw`（Excalidraw 0.18.1，submodule）做的每一处源码改动。
 机器可查的标记是代码里的 `// TS-FORK:` 注释，这里是给人看的版本。

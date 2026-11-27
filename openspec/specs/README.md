@@ -27,7 +27,6 @@
 | 2026-11-27 | `add-mouse-input` | 已归档：鼠标接入统一虚拟笔，右键 / `\` 开样式环，小圆点与笔触边界 |
 | 2026-11-27 | `turn-radial-menu-into-style-wheel` | 已归档：侧键 1 改为两级样式环，旧动作迁到浮岛「更多」 |
 | 2026-11-27 | `add-app-icon` | 已归档：自绘应用图标，CoreGraphics 生成全尺寸 `.icns` |
-| 2026-11-27 | `drop-unused-excalidraw-fork` | 已归档：删除未使用的 Excalidraw submodule 与 fork 地址，前端继续走 npm 包（无行为变化） |
 
 ## 已知未解决
 

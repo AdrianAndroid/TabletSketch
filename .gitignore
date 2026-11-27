@@ -23,6 +23,9 @@ Web/app/node_modules/
 Web/app/dist/
 Web/app/release/
 
+# fork 源码（git submodule，不在此仓库内追踪内容）
+# Web/vendor/excalidraw 由 .gitmodules 管理
+
 # 发布产物
 *.dmg
 *.zip

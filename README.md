@@ -85,8 +85,8 @@ Electron 主进程 (Web/app/main.js)
         └── tablet/*          自绘 chrome：按键带、浮岛、样式环、设置
 ```
 
-- 前端基于 npm 包 `@excalidraw/excalidraw@0.18.1`，不改源码；原生 UI 由 CSS 隐藏，交互全部自绘。
-- 打包产物 `Build/TabletSketch.app` 为手工组装，**未签名**。
+- 前端基于 Excalidraw 0.18.1（`Web/vendor/excalidraw`，submodule，未改源码），原生 UI 由 CSS 隐藏，交互全部自绘。
+- 打包产物 `Build/TabletSketch.app` 为手工组装；日常版本由 `Scripts/install-local.sh` 用固定身份 `MacAppControlDeck Self-Signed` 签名后覆盖安装到 `/Applications`。
 - 画板默认存到 `~/Pictures/TabletSketch/Sketches/`。
 
 ## 仓库结构
@@ -99,7 +99,8 @@ TabletSketch/
 │   └── TabletSketchCore/      # 报文解析、笔状态机
 ├── Web/
 │   ├── app/                   # Electron 外壳、preload、HID 桥
-│   └── sketch/                # 前端包装层源码（依赖 npm 包 Excalidraw 0.18.1）
+│   ├── sketch/                # 前端包装层源码
+│   └── vendor/excalidraw/     # Excalidraw 0.18.1 submodule
 ├── Resources/Sketch/          # 前端构建产物（由 vite 输出）
 ├── Scripts/make-app.sh        # 组装 .app
 ├── openspec/
@@ -134,7 +135,7 @@ openspec/specs/<capability>/spec.md
 
 1. **板载键会漏到前台应用**。这 8 个键在固件层就是真键盘快捷键，切到浏览器按 7 号键，浏览器也会撤销。
 2. **笔仍然驱动系统光标**。Digitizer 与 Generic Desktop 接口的独占在用户态始终返回 `kIOReturnExclusiveAccess`，系统内核 HID 驱动先占。
-3. `.app` 未签名，首次打开需要右键 → 打开。
+3. 签名是本机自签（`MacAppControlDeck Self-Signed`），未公证；换机器需要重新信任并授权「输入监控」。
 4. 字体仍从 CDN 拉取，与「完全离线」目标有差距。
 
 第 1、2 条的解法与代价见 `Docs/HANDOFF.md` 末尾。
