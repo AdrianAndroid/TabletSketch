@@ -32,6 +32,11 @@ const DEFAULT_SLOTS = [
 /** 双排上限 16 格，超过部分进「更多」。 */
 const VISIBLE_LIMIT = 15;
 
+// 配置是静态的：提到模块级避免每次 render 重建数组，
+// 否则任何依赖 [visible] 的 effect 都会被反复清理/重订阅。
+const VISIBLE_SLOTS = DEFAULT_SLOTS.slice(0, VISIBLE_LIMIT);
+const OVERFLOW_SLOTS = DEFAULT_SLOTS.slice(VISIBLE_LIMIT);
+
 const TOOL_LABEL = {
   freedraw: "笔",
   eraser: "橡皮",
@@ -122,11 +127,10 @@ export function TabletShell({ onOpenSettings }) {
   const [toastText, setToastText] = useState("");
   // 独占打开成功后系统不再画指针，光标由我们自己画
   const [grabbed, setGrabbed] = useState(false);
-  const [penPos, setPenPos] = useState(null);
-  const [cursor, setCursor] = useState(null);
+  // 光标的低频形状状态（按下态 / 来源 / 是否显示）；位置走 ref 直写 DOM，不进 state。
+  const [cursorShape, setCursorShape] = useState({ down: false, source: null, visible: false });
   const [padFlash, setPadFlash] = useState(null);
-  // 压感 / 倾斜测试读数
-  const [telemetry, setTelemetry] = useState(null);
+  // 读数板是否展开：收起时组件卸载，订阅随之停止。
   const [teleOpen, setTeleOpen] = useState(true);
   const [boards, setBoards] = useState([]);
   const [activeBoard, setActiveBoard] = useState(null);
@@ -136,31 +140,16 @@ export function TabletShell({ onOpenSettings }) {
   const dragRef = useRef(null);
   // 笔最近一次落点：径向菜单和样式气泡都以它为中心，而不是屏幕中心
   const penRef = useRef({ x: window.innerWidth / 2, y: window.innerHeight / 2 });
-  const penPosRef = useRef(null);
   const mouseRef = useRef({ x: window.innerWidth / 2, y: window.innerHeight / 2 });
+  // 唯一光标的 DOM 引用：位置直接写 transform，避免高频 setState 重渲染整棵树
+  const cursorElRef = useRef(null);
+  const cursorShapeRef = useRef(cursorShape);
   const radialRef = useRef(null);
   const toastTimerRef = useRef(0);
 
-  const visible = DEFAULT_SLOTS.slice(0, VISIBLE_LIMIT);
-  const overflow = DEFAULT_SLOTS.slice(VISIBLE_LIMIT);
+  const visible = VISIBLE_SLOTS;
+  const overflow = OVERFLOW_SLOTS;
   const crosshair = CROSSHAIR_TOOLS.has(tool);
-
-  // 记住笔的悬停位置，菜单弹出时贴着笔尖
-  useEffect(() => {
-    const onHover = (event) => {
-      if (event.detail) penRef.current = event.detail;
-    };
-    window.addEventListener("tablet:hover", onHover);
-    return () => window.removeEventListener("tablet:hover", onHover);
-  }, []);
-
-  // 光标位置是唯一可信的"笔现在在哪"，每帧都同步给 menu 定位用。
-  // 只靠 hover 会停在最后一次悬停点，笔一动就对不上。
-  useEffect(() => {
-    if (penPos && Number.isFinite(penPos.x) && Number.isFinite(penPos.y)) {
-      penRef.current = { x: penPos.x, y: penPos.y };
-    }
-  }, [penPos]);
 
   // 工具状态跟着画布走（用户可能用快捷键切了工具）
   useEffect(() => {
@@ -171,13 +160,6 @@ export function TabletShell({ onOpenSettings }) {
       if (next) setTool(next);
     }, 400);
     return () => clearInterval(timer);
-  }, []);
-
-  // 压感 / 倾斜：只给右上角读数板用
-  useEffect(() => {
-    const onTele = (event) => setTelemetry(event.detail);
-    window.addEventListener("tablet:telemetry", onTele);
-    return () => window.removeEventListener("tablet:telemetry", onTele);
   }, []);
 
   // HID 状态、板载键、侧键
@@ -233,15 +215,40 @@ export function TabletShell({ onOpenSettings }) {
     }
   }, []);
 
-  // 笔尖位置与独占状态
+  /**
+   * 唯一的光标更新函数：位置直接写 DOM transform，只有「形状」（按下/来源/显隐）
+   * 变化时才 setState。笔每个报告都会走到这里，但绝大多数报告形状不变，
+   * 因此不再有每报告一次的全树重渲染。
+   */
+  const paintCursor = useCallback((detail, source) => {
+    const el = cursorElRef.current;
+    if (el) {
+      if (detail) {
+        el.style.transform = `translate3d(${detail.x}px, ${detail.y}px, 0)`;
+        el.style.display = "";
+      } else {
+        el.style.display = "none";
+      }
+    }
+    const prev = cursorShapeRef.current;
+    const down = detail ? !!detail.down : false;
+    const visible = !!detail;
+    const nextSource = detail ? source : prev.source;
+    if (prev.down !== down || prev.source !== nextSource || prev.visible !== visible) {
+      const next = { down, source: nextSource, visible };
+      cursorShapeRef.current = next;
+      setCursorShape(next);
+    }
+  }, []);
+
+  // 笔尖位置与独占状态：一个事件里同时更新光标、笔落点 ref 与读数数据
   useEffect(() => {
     const onPos = (event) => {
       const detail = event.detail;
-      setPenPos(detail);
-      setCursor((current) => {
-        if (detail) return { x: detail.x, y: detail.y, down: !!detail.down, source: "pen" };
-        return current?.source === "pen" ? null : current;
-      });
+      if (detail && Number.isFinite(detail.x) && Number.isFinite(detail.y)) {
+        penRef.current = { x: detail.x, y: detail.y };
+      }
+      paintCursor(detail, "pen");
     };
     const onGrab = (event) => setGrabbed(!!event.detail?.ok);
     window.addEventListener("tablet:penpos", onPos);
@@ -250,11 +257,7 @@ export function TabletShell({ onOpenSettings }) {
       window.removeEventListener("tablet:penpos", onPos);
       window.removeEventListener("tablet:grab", onGrab);
     };
-  }, []);
-
-  useEffect(() => {
-    penPosRef.current = penPos;
-  }, [penPos]);
+  }, [paintCursor]);
 
   useEffect(() => {
     radialRef.current = radial;
@@ -304,28 +307,26 @@ export function TabletShell({ onOpenSettings }) {
     return () => window.removeEventListener("resize", onResize);
   }, [islandPos]);
 
-  // 记住位置，重启后恢复
+  // 记住位置，重启后恢复。拖动中 islandPos 不变（视觉走 transform），
+  // 所以这里只在松手落定时写一次盘，不再每次 move 都同步磁盘。
   useEffect(() => {
-    if (!islandPos) return;
+    if (!islandPos || islandDragging) return;
     try {
       localStorage.setItem(ISLAND_KEY, JSON.stringify(islandPos));
     } catch {
       /* 空间不足就放弃 */
     }
-  }, [islandPos]);
+  }, [islandPos, islandDragging]);
 
   useEffect(() => {
     const onMouse = (event) => {
       const detail = event.detail;
       if (detail) mouseRef.current = { x: detail.x, y: detail.y };
-      setCursor((current) => {
-        if (detail) return { x: detail.x, y: detail.y, down: !!detail.down, source: "mouse" };
-        return current?.source === "mouse" ? null : current;
-      });
+      paintCursor(detail, "mouse");
     };
     window.addEventListener("tablet:mousepos", onMouse);
     return () => window.removeEventListener("tablet:mousepos", onMouse);
-  }, []);
+  }, [paintCursor]);
 
   // 画板列表和当前选择写回本地，下次打开还是这张
   useEffect(() => {
@@ -580,7 +581,8 @@ export function TabletShell({ onOpenSettings }) {
     [applyTool]
   );
 
-  // 拖动浮岛：按住把手实时跟手，松手吸附到最近的边
+  // 拖动浮岛：按住把手跟手，松手吸附到最近的边。
+  // 拖动期间只改 transform（合成层），不 setState、不触发布局与写盘。
   const onGripDown = (event) => {
     event.preventDefault();
     const el = islandRef.current;
@@ -591,32 +593,63 @@ export function TabletShell({ onOpenSettings }) {
       dy: event.clientY - rect.top,
       w: rect.width,
       h: rect.height,
-      moved: false
+      originX: rect.left,
+      originY: rect.top,
+      // 未定位时 CSS 用 translateY(-50%) 垂直居中，拖动必须保留这条基线
+      baseTransform: islandPos ? "" : "translateY(-50%)",
+      moved: false,
+      pending: null,
+      raf: 0
     };
     dragRef.current = drag;
     setIslandDragging(true);
+    window.__tsIslandDragging = true;
+
+    const paint = () => {
+      drag.raf = 0;
+      const target = drag.pending;
+      if (!target) return;
+      const shift = `translate3d(${target.x - drag.originX}px, ${target.y - drag.originY}px, 0)`;
+      el.style.transform = drag.baseTransform ? drag.baseTransform + " " + shift : shift;
+    };
+
     const onMove = (moveEvent) => {
       drag.moved = true;
-      setIslandPos(
-        clampIsland({ x: moveEvent.clientX - drag.dx, y: moveEvent.clientY - drag.dy }, drag.w, drag.h)
+      drag.pending = clampIsland(
+        { x: moveEvent.clientX - drag.dx, y: moveEvent.clientY - drag.dy },
+        drag.w,
+        drag.h
       );
+      // 高频笔报告合并到每帧一次，避免重复样式写入抢占画布输入
+      if (!drag.raf) drag.raf = requestAnimationFrame(paint);
     };
+
     const onUp = () => {
       window.removeEventListener("pointermove", onMove);
       window.removeEventListener("pointerup", onUp);
+      window.removeEventListener("pointercancel", onUp);
+      if (drag.raf) cancelAnimationFrame(drag.raf);
+      drag.raf = 0;
       dragRef.current = null;
+      window.__tsIslandDragging = false;
       setIslandDragging(false);
-      if (!drag.moved) return;
-      setIslandPos((pos) => {
-        if (!pos) return pos;
-        const snapped = snapIsland(pos, drag.w, drag.h);
-        // 直接在这里定面板朝向，不依赖下一次 effect 的时序
-        setSide(snapped.x + drag.w / 2 < window.innerWidth / 2 ? "left" : "right");
-        return snapped;
-      });
+      if (!drag.moved || !drag.pending) {
+        el.style.transform = "";
+        return;
+      }
+      const snapped = snapIsland(drag.pending, drag.w, drag.h);
+      // 先落到真实坐标再交回 React，避免提交前回弹到旧位置的中间帧
+      el.style.left = snapped.x + "px";
+      el.style.top = snapped.y + "px";
+      el.style.transform = "";
+      setIslandPos(snapped);
+      // 面板朝向跟最终位置，不等下一次 effect 的时序
+      setSide(snapped.x + drag.w / 2 < window.innerWidth / 2 ? "left" : "right");
     };
+
     window.addEventListener("pointermove", onMove);
     window.addEventListener("pointerup", onUp);
+    window.addEventListener("pointercancel", onUp);
   };
 
   // 双击把手：复位到右侧、垂直居中
@@ -794,7 +827,7 @@ export function TabletShell({ onOpenSettings }) {
           slots={radial.slots}
           outerSlots={radial.outerOpen ? radial.outerSlots : []}
           centerLabel={radial.outerOpen ? "返回" : radial.centerLabel}
-          hoverPoint={radial.source === "pen" && penPos ? { x: penPos.x, y: penPos.y } : null}
+          followPen={radial.source === "pen"}
           onAction={handleWheelAction}
           onCenter={handleWheelCenter}
         />
@@ -818,18 +851,17 @@ export function TabletShell({ onOpenSettings }) {
       ) : null}
 
       {teleOpen ? (
-        <PenTelemetry data={telemetry} side={side} onClose={() => setTeleOpen(false)} />
+        <PenTelemetry side={side} onClose={() => setTeleOpen(false)} />
       ) : (
         <PenTelemetryChip side={side} onClick={() => setTeleOpen(true)} />
       )}
 
-      {/* 唯一指示器：手写笔与鼠标共用，最后活动的来源决定位置 */}
-      {cursor ? (
-        <div
-          className={`ts-pen-cursor${cursor.down ? " is-down" : ""}${crosshair ? " is-cross" : ""}`}
-          style={{ transform: `translate3d(${cursor.x}px, ${cursor.y}px, 0)` }}
-        />
-      ) : null}
+      {/* 唯一指示器：手写笔与鼠标共用。位置由 paintCursor 直写 DOM，这里只管形状。 */}
+      <div
+        ref={cursorElRef}
+        className={`ts-pen-cursor${cursorShape.down ? " is-down" : ""}${crosshair ? " is-cross" : ""}`}
+        style={{ display: cursorShape.visible ? "" : "none" }}
+      />
 
       {toastText ? <div className="ts-toast">{toastText}</div> : null}
 

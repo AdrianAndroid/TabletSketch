@@ -11,6 +11,9 @@
   --ts-text-dim: #6b6f76;
   --ts-accent: #0a84ff;
   --ts-accent-soft: rgba(10, 132, 255, 0.12);
+  /* 样式环必须遮住画布，单独用实色，不复用带 alpha 的强调色 */
+  --ts-radial-hover: #d9ebff;
+  --ts-radial-dim: #f2f4f7;
   --ts-danger: #e03131;
   --ts-radius: 12px;
   --ts-shadow: 0 8px 28px rgba(16, 18, 24, 0.14), 0 1px 2px rgba(16, 18, 24, 0.08);
@@ -137,7 +140,11 @@ body.tablet-mode {
 
 .ts-island.is-dragging {
   transition: none;
-  will-change: left, top;
+  will-change: transform;
+  /* 拖动时关掉昂贵的背景重采样，跟手优先 */
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  background: var(--ts-surface-solid);
 }
 
 .ts-island--right {
@@ -563,8 +570,17 @@ body.tablet-mode {
 }
 
 .ts-radial-inner.is-dim {
-  opacity: 0.4;
   pointer-events: none;
+}
+
+/* 二级环的内圈只弱化图标，底色仍是实色，不能透出画布 */
+.ts-radial-inner.is-dim .ts-radial-path {
+  fill: var(--ts-radial-dim);
+}
+
+.ts-radial-inner.is-dim .ts-radial-icon,
+.ts-radial-inner.is-dim .ts-radial-swatch-wrap {
+  opacity: 0.5;
 }
 
 .ts-radial.is-swap .ts-radial-slot {
@@ -599,7 +615,7 @@ body.tablet-mode {
 
 .ts-radial-path:hover,
 .ts-radial-path.is-hover {
-  fill: var(--ts-accent-soft);
+  fill: var(--ts-radial-hover);
 }
 
 .ts-radial-path.is-current {
@@ -1079,6 +1095,8 @@ body.tablet-mode {
     --ts-text: #eceef1;
     --ts-text-dim: #9aa0a7;
     --ts-shadow: 0 10px 30px rgba(0, 0, 0, 0.45);
+    --ts-radial-hover: #24405e;
+    --ts-radial-dim: #303136;
   }
 
   .ts-cell {
@@ -1097,7 +1115,7 @@ body.tablet-mode {
   }
 
   .ts-radial-path {
-    fill: rgba(44, 45, 50, 0.94);
+    fill: #2c2d32;
     stroke: rgba(255, 255, 255, 0.12);
   }
 

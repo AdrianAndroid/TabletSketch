@@ -1,4 +1,4 @@
-import React from "react";
+import React, { memo, useEffect, useState } from "react";
 
 const DEG = Math.PI / 180;
 
@@ -34,7 +34,7 @@ function tiltAngle(tiltX, tiltY) {
   return Math.atan(t) / DEG;
 }
 
-export function PenTelemetry({ data, onClose, side = "right" }) {
+function PenTelemetryView({ data, onClose, side = "right" }) {
   const p = Math.max(0, Math.min(1, data?.p || 0));
   const raw = Math.round(data?.raw || 0);
   const tiltX = Math.round(data?.tx || 0);
@@ -80,6 +80,38 @@ export function PenTelemetry({ data, onClose, side = "right" }) {
     </div>
   );
 }
+
+/**
+ * 读数板自己订阅笔采样，用 rAF 把每帧内的多个报告合并成一次更新。
+ * 组件展开时才挂载，收起即卸载订阅，不再让高频读数拖累整棵界面树。
+ */
+export const PenTelemetry = memo(function PenTelemetry({ onClose, side = "right" }) {
+  const [data, setData] = useState(null);
+
+  useEffect(() => {
+    let frame = 0;
+    let pending = null;
+    const onPos = (event) => {
+      // 拖浮岛时读数是无关信息，暂停更新以免每帧一次 React 渲染抢占跟手
+      if (window.__tsIslandDragging) return;
+      const detail = event.detail;
+      if (detail?.source !== "pen") return;
+      pending = detail;
+      if (frame) return;
+      frame = requestAnimationFrame(() => {
+        frame = 0;
+        setData(pending);
+      });
+    };
+    window.addEventListener("tablet:penpos", onPos);
+    return () => {
+      window.removeEventListener("tablet:penpos", onPos);
+      if (frame) cancelAnimationFrame(frame);
+    };
+  }, []);
+
+  return <PenTelemetryView data={data} onClose={onClose} side={side} />;
+});
 
 /** 面板收起后的重新打开入口（R0：用户可见功能必须有内置入口） */
 export function PenTelemetryChip({ onClick, side = "right" }) {

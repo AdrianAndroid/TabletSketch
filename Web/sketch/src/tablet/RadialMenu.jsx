@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Icons } from "./icons";
 
 const INNER_RADIUS = 45;
@@ -152,11 +152,34 @@ export function RadialMenu({
   slots = [],
   outerSlots = [],
   centerLabel = "取消",
-  hoverPoint = null,
+  followPen = false,
   onAction,
   onCenter
 }) {
   const [pointer, setPointer] = useState(null);
+
+  // 笔尖位置只在样式环打开时订阅（组件此时才挂载），并用 rAF 合并到每帧一次，
+  // 避免每个笔报告都让样式环重渲染。鼠标位置仍走 svg 自己的 pointermove。
+  useEffect(() => {
+    if (!followPen) return undefined;
+    let frame = 0;
+    let pending = null;
+    const onPos = (event) => {
+      const detail = event.detail;
+      if (!detail || !Number.isFinite(detail.x) || !Number.isFinite(detail.y)) return;
+      pending = { x: detail.x, y: detail.y };
+      if (frame) return;
+      frame = requestAnimationFrame(() => {
+        frame = 0;
+        if (pending) setPointer(pending);
+      });
+    };
+    window.addEventListener("tablet:penpos", onPos);
+    return () => {
+      window.removeEventListener("tablet:penpos", onPos);
+      if (frame) cancelAnimationFrame(frame);
+    };
+  }, [followPen]);
 
   const count = Math.max(1, slots.length);
   const outerCount = outerSlots.length;
@@ -171,7 +194,7 @@ export function RadialMenu({
   const left = cx - r2;
   const top = cy - r2;
 
-  const activePoint = hoverPoint || pointer;
+  const activePoint = pointer;
 
   const hover = useMemo(
     () => locateSlot(activePoint, left, top, center, r1, count, r2, outerCount),

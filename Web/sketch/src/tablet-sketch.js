@@ -51,6 +51,20 @@ function canvasEl() {
   );
 }
 
+/**
+ * 画布 rect 缓存：笔每个报告都要做坐标映射，getBoundingClientRect 会强制同步布局。
+ * 画布尺寸只在窗口 resize / 视口变换时改变，用失效钩子清缓存即可，避免每报告读一次。
+ */
+let stageRectCache = null;
+function stageRect() {
+  if (stageRectCache) return stageRectCache;
+  stageRectCache = canvasEl()?.getBoundingClientRect() || null;
+  return stageRectCache;
+}
+function invalidateStageRect() {
+  stageRectCache = null;
+}
+
 /** 上游会对自造 pointerId 调 setPointerCapture，Safari 抛 InvalidPointerId。 */
 function patchPointerCapture() {
   const proto = Element.prototype;
@@ -220,20 +234,6 @@ function applyHidEvent(payload, source = "pen") {
 
   if (payload.t !== "pen") return;
 
-  if (source === "pen") {
-    window.dispatchEvent(
-      new CustomEvent("tablet:telemetry", {
-        detail: {
-          p: typeof payload.p === "number" ? payload.p : 0,
-          raw: typeof payload.px === "number" ? payload.px : 0,
-          tx: typeof payload.tx === "number" ? payload.tx : 0,
-          ty: typeof payload.ty === "number" ? payload.ty : 0,
-          ph: payload.ph
-        }
-      })
-    );
-  }
-
   // 笔离开感应区：收起光标圆圈，别让它赖在屏幕上
   if (payload.ph === "leave") {
     strokeSource = null;
@@ -243,11 +243,14 @@ function applyHidEvent(payload, source = "pen") {
 
   const target = canvasEl();
   if (!target) return;
-  const rect = target.getBoundingClientRect();
+  const rect = stageRect();
+  if (!rect) return;
   const x = rect.left + payload.x * rect.width;
   const y = rect.top + payload.y * rect.height;
 
   if (source === "pen") {
+    // 一个报告只派发一个呈现事件：读数板与光标都从这里取，避免两个独立事件
+    // 各自触发一次 React setState（跨事件不会自动批处理）。
     window.dispatchEvent(
       new CustomEvent("tablet:penpos", {
         detail: {
@@ -255,15 +258,19 @@ function applyHidEvent(payload, source = "pen") {
           y,
           nx: payload.x,
           ny: payload.y,
-          down: payload.ph === "began" || payload.ph === "changed"
+          down: payload.ph === "began" || payload.ph === "changed",
+          // 遥测字段合并进来，读数板随同一事件更新
+          p: typeof payload.p === "number" ? payload.p : 0,
+          raw: typeof payload.px === "number" ? payload.px : 0,
+          tx: typeof payload.tx === "number" ? payload.tx : 0,
+          ty: typeof payload.ty === "number" ? payload.ty : 0,
+          ph: payload.ph,
+          source
         }
       })
     );
 
-    if (payload.ph === "hover") {
-      window.dispatchEvent(new CustomEvent("tablet:hover", { detail: { x, y } }));
-      return;
-    }
+    if (payload.ph === "hover") return;
   } else if (payload.ph === "hover") {
     return;
   }
@@ -275,6 +282,9 @@ function applyHidEvent(payload, source = "pen") {
   if (isChrome(hit)) {
     if (payload.ph === "began") {
       hit.dispatchEvent(makePointerEvent("pointerdown", x, y, 0.5));
+    } else if (payload.ph === "changed") {
+      // 把手拖动依赖连续 pointermove；之前这里直接丢弃，笔在浮岛内移动不会跟手。
+      hit.dispatchEvent(makePointerEvent("pointermove", x, y, 0.5));
     } else if (payload.ph === "ended") {
       hit.dispatchEvent(makePointerEvent("pointerup", x, y, 0));
       hit.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true, clientX: x, clientY: y }));
@@ -702,6 +712,9 @@ function installTabletSketch(excalidrawApi) {
     feedPen: (payload) => feedVirtualPen(payload, "mouse"),
     isStrokeActive: () => strokeSource !== null
   });
+
+  // 画布 rect 只在窗口尺寸变化时失效，避免每个笔报告强制同步布局
+  window.addEventListener("resize", invalidateStageRect);
 
   // contextIsolation 下 preload 看不到 window 上的属性，只能用 DOM 事件跨世界传话。
   // 笔采样、自测、chrome 开关都从这三个事件进。

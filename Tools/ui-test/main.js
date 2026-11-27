@@ -54,6 +54,20 @@ const SCENARIO = String.raw`(async () => {
       pointerId: 77, pointerType: "mouse", isPrimary: true
     }));
 
+  // 用 ts:hid 模拟真实笔报告，client 坐标转归一化后送进同一个事件源
+  const penClient = (phase, clientX, clientY) => {
+    const s = $(".ts-stage")?.getBoundingClientRect();
+    if (!s) return;
+    document.dispatchEvent(new CustomEvent("ts:hid", {
+      detail: {
+        t: "pen", ph: phase,
+        x: (clientX - s.left) / Math.max(1, s.width),
+        y: (clientY - s.top) / Math.max(1, s.height),
+        p: 0.5
+      }
+    }));
+  };
+
   // ---------- 结构 ----------
   const island = $(".ts-island");
   log("浮岛存在", !!island);
@@ -129,6 +143,43 @@ const SCENARIO = String.raw`(async () => {
     log("双击把手复位到右侧", $(".ts-island").className.includes("ts-island--right"), $(".ts-island").className);
     log("复位后垂直居中", Math.abs((rr.top + rr.bottom) / 2 - window.innerHeight / 2) < 20,
         Math.round((rr.top + rr.bottom) / 2) + " vs " + Math.round(window.innerHeight / 2));
+
+    // 非选择工具下，笔必须能直接拖动把手（把手本身就是拖动入口）
+    click(cell(4));
+    await sleep(120);
+    const toolBeforeDrag = window.tabletSketch?.getTool?.();
+    g = center($(".ts-island-grip"));
+    const smallX = g.x - Math.min(8, gr.width / 4);
+    const beforeSmall = $(".ts-island").getBoundingClientRect().left;
+    penClient("began", g.x, g.y);
+    penClient("changed", smallX, g.y);
+    await sleep(60);
+    const duringSmall = $(".ts-island").getBoundingClientRect().left;
+    log("笔在把手内小幅移动即跟手", Math.abs(duringSmall - beforeSmall) > 4,
+        Math.round(duringSmall - beforeSmall) + "px, hit=" + (topAt(smallX, g.y)?.className || ""));
+    penClient("ended", smallX, g.y);
+    await sleep(120);
+
+    const inkBeforeDrag = window.tabletSketch?.getSceneElements?.().length || 0;
+    g = center($(".ts-island-grip"));
+    penClient("began", g.x, g.y);
+    penClient("changed", g.x - 120, g.y);
+    penClient("changed", 70, g.y);
+    penClient("ended", 70, g.y);
+    await sleep(300);
+    log("非选择工具下笔可拖动浮岛", $(".ts-island").className.includes("ts-island--left"),
+        toolBeforeDrag + " -> " + $(".ts-island").className);
+    log("拖浮岛不在画布落笔", (window.tabletSketch?.getSceneElements?.().length || 0) === inkBeforeDrag,
+        "before=" + inkBeforeDrag + " after=" + (window.tabletSketch?.getSceneElements?.().length || 0));
+    log("笔拖浮岛不改写工具", window.tabletSketch?.getTool?.() === toolBeforeDrag,
+        window.tabletSketch?.getTool?.());
+
+    // 复位到右侧，避免影响后续断言
+    g = center($(".ts-island-grip"));
+    pointer("pointerdown", g.x, g.y, $(".ts-island-grip"));
+    pointer("pointermove", window.innerWidth - 70, g.y, window);
+    pointer("pointerup", window.innerWidth - 70, g.y, window);
+    await sleep(260);
   }
 
   // ---------- 面板遮挡 ----------
@@ -325,6 +376,19 @@ const SCENARIO = String.raw`(async () => {
   await sleep(250);
   log("选择工具回到圆环", !$(".ts-pen-cursor.is-cross"), $(".ts-pen-cursor")?.className || "missing");
 
+  // ---------- 样式环扇区必须不透明 ----------
+  const probeSvg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+  probeSvg.setAttribute("width", "20");
+  probeSvg.setAttribute("height", "20");
+  probeSvg.innerHTML = '<path class="ts-radial-path" d="M0 0 L10 0 L10 10 Z"></path>' +
+    '<path class="ts-radial-path is-hover" d="M0 0 L10 0 L10 10 Z"></path>';
+  document.body.appendChild(probeSvg);
+  const radialFills = Array.from(probeSvg.querySelectorAll("path")).map((p) => getComputedStyle(p).fill);
+  const isSolidFill = (value) => /^rgb\(/.test(value || "") && !/^rgba\(/.test(value || "");
+  log("样式环普通扇区实色", isSolidFill(radialFills[0]), radialFills[0] || "missing");
+  log("样式环高亮扇区实色", isSolidFill(radialFills[1]), radialFills[1] || "missing");
+  probeSvg.remove();
+
   document.dispatchEvent(new CustomEvent("ts:hid", { detail: { t: "pen", ph: "hover", x: 0.5, y: 0.5 } }));
   await sleep(160);
   const penTransform = $(".ts-pen-cursor")?.style.transform || "";
@@ -335,10 +399,21 @@ const SCENARIO = String.raw`(async () => {
   await sleep(100);
   window.dispatchEvent(new CustomEvent("tablet:mousepos", { detail: null }));
   await sleep(120);
-  log("鼠标移出隐藏指示器", !$(".ts-pen-cursor"), $(".ts-pen-cursor") ? "still visible" : "hidden");
+  // 光标 DOM 常驻，靠 display 控制显隐（避免高频挂载/卸载）
+  const hiddenCursor = $(".ts-pen-cursor");
+  log(
+    "鼠标移出隐藏指示器",
+    !hiddenCursor || hiddenCursor.style.display === "none",
+    hiddenCursor ? "display=" + (hiddenCursor.style.display || "visible") : "no dom"
+  );
   window.dispatchEvent(new CustomEvent("tablet:mousepos", { detail: { x: 430, y: 530, down: false } }));
   await sleep(120);
-  log("鼠标移入恢复指示器", !!$(".ts-pen-cursor"), $(".ts-pen-cursor")?.style.transform || "missing");
+  const shownCursor = $(".ts-pen-cursor");
+  log(
+    "鼠标移入恢复指示器",
+    !!shownCursor && shownCursor.style.display !== "none" && shownCursor.style.transform.includes("430"),
+    shownCursor?.style.transform || "missing"
+  );
 
   // ---------- 双排布局不溢出 ----------
   const ir = $(".ts-island").getBoundingClientRect();
