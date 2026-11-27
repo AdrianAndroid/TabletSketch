@@ -126,7 +126,18 @@ body.tablet-mode {
   display: flex;
   flex-direction: column;
   gap: 4px;
-  transition: left 0.18s ease, right 0.18s ease;
+  transition: left 0.18s ease, top 0.18s ease;
+}
+
+.ts-island.is-positioned {
+  right: auto;
+  top: 0;
+  transform: none;
+}
+
+.ts-island.is-dragging {
+  transition: none;
+  will-change: left, top;
 }
 
 .ts-island--right {
@@ -138,16 +149,27 @@ body.tablet-mode {
 }
 
 .ts-island-grip {
-  height: 12px;
+  height: 16px;
   display: flex;
   align-items: center;
   justify-content: center;
   color: #c2c6cd;
   cursor: grab;
   pointer-events: auto;
+  border-radius: 8px;
+  transition: background 0.12s ease, color 0.12s ease;
+}
+
+.ts-island-grip:hover {
+  background: rgba(19, 20, 23, 0.06);
+  color: #8a8f97;
 }
 
 .ts-island-grip:active {
+  cursor: grabbing;
+}
+
+.ts-island.is-dragging .ts-island-grip {
   cursor: grabbing;
 }
 

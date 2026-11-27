@@ -57,3 +57,13 @@ Web/app/node_modules/.bin/electron Tools/ui-test/main.js
 - `show: false`、`app.dock.hide()`、独立 `userData`，不启动 HID，不抢焦点。
 - 通过 `PointerEvent` / `MouseEvent` 走 React 合成事件，和真人点击同一条路径。
 - 断言包含：手柄是否可命中、拖动是否换边、面板中心 `elementFromPoint`、面板打开时浮岛是否仍可点、11 个工具格逐一切换、更多面板动作与置灰状态。
+
+## 5. 自由拖动（补充）
+
+原实现只判断指针是否越过窗口中轴，松手前浮岛完全不跟手；实测用户以为「拖不动」。
+
+- 按住把手后浮岛按绝对坐标实时跟手（`left/top`，拖动期间关闭过渡）。
+- 松手吸附：距任一边 ≤24pt 贴该边；否则只吸最近的竖边，纵向保持拖动位置。浮岛是竖栏，水平拖动不该突然贴到顶部。
+- 位置写入 `localStorage["tablet.island.pos"]`，启动恢复；窗口缩放时夹回可视区。
+- 双击把手复位到右侧、垂直居中。
+- 把手高度 12pt → 16pt，加 hover 底色，提升可抓性。

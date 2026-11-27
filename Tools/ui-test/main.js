@@ -83,11 +83,24 @@ const SCENARIO = String.raw`(async () => {
   if (gr) {
     const before = island.className;
     let g = center($(".ts-island-grip"));
+    const r0 = $(".ts-island").getBoundingClientRect();
+    pointer("pointerdown", g.x, g.y, $(".ts-island-grip"));
+    pointer("pointermove", g.x - 150, g.y, window);
+    await sleep(80);
+    const r1 = $(".ts-island").getBoundingClientRect();
+    log("拖动实时跟手", Math.abs(r1.left - (r0.left - 150)) < 8,
+        Math.round(r1.left - r0.left) + "," + Math.round(r1.top - r0.top));
+    pointer("pointerup", g.x - 150, g.y, window);
+    await sleep(280);
+    log("跟手后仍吸附到右侧", $(".ts-island").className.includes("ts-island--right"), $(".ts-island").className);
+
+    g = center($(".ts-island-grip"));
     pointer("pointerdown", g.x, g.y, $(".ts-island-grip"));
     pointer("pointermove", 70, g.y, window);
     pointer("pointerup", 70, g.y, window);
-    await sleep(260);
+    await sleep(280);
     log("拖动换到左侧", $(".ts-island").className.includes("ts-island--left"), before + " -> " + $(".ts-island").className);
+    log("位置已持久化", !!localStorage.getItem("tablet.island.pos"), localStorage.getItem("tablet.island.pos") || "null");
 
     g = center($(".ts-island-grip"));
     pointer("pointerdown", g.x, g.y, $(".ts-island-grip"));
@@ -111,8 +124,11 @@ const SCENARIO = String.raw`(async () => {
     // 双击把手复位
     const gg = center($(".ts-island-grip"));
     $(".ts-island-grip").dispatchEvent(new MouseEvent("dblclick", { bubbles: true, cancelable: true, clientX: gg.x, clientY: gg.y }));
-    await sleep(260);
+    await sleep(300);
+    const rr = $(".ts-island").getBoundingClientRect();
     log("双击把手复位到右侧", $(".ts-island").className.includes("ts-island--right"), $(".ts-island").className);
+    log("复位后垂直居中", Math.abs((rr.top + rr.bottom) / 2 - window.innerHeight / 2) < 20,
+        Math.round((rr.top + rr.bottom) / 2) + " vs " + Math.round(window.innerHeight / 2));
   }
 
   // ---------- 面板遮挡 ----------
@@ -230,6 +246,9 @@ app.whenReady().then(async () => {
   let results = [];
   try {
     await win.loadFile(INDEX);
+    await waitFor(win, "!!document.body");
+    await win.webContents.executeJavaScript('localStorage.removeItem("tablet.island.pos")', true);
+    await win.reload();
     await waitFor(win, "!!(window.tabletSketch && window.tabletSketch.ready)");
     await new Promise((r) => setTimeout(r, 600));
     results = await win.webContents.executeJavaScript(SCENARIO, true);

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Icons } from "./icons";
 import { MenuPanel, CanvasPanel, LibraryPanel, MorePanel } from "./panels";
 import { RadialMenu } from "./RadialMenu";
@@ -50,6 +50,55 @@ function bridge() {
   return window.tabletSketch ?? null;
 }
 
+const ISLAND_KEY = "tablet.island.pos";
+const ISLAND_MARGIN = 12;
+const ISLAND_TOP_MIN = 72;
+
+function clampIsland(pos, w, h) {
+  const maxX = Math.max(ISLAND_MARGIN, window.innerWidth - w - ISLAND_MARGIN);
+  const maxY = Math.max(ISLAND_TOP_MIN, window.innerHeight - h - ISLAND_MARGIN);
+  return {
+    x: Math.min(Math.max(pos.x, ISLAND_MARGIN), maxX),
+    y: Math.min(Math.max(pos.y, ISLAND_TOP_MIN), maxY)
+  };
+}
+
+function loadIslandPos() {
+  try {
+    const raw = localStorage.getItem(ISLAND_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (Number.isFinite(parsed?.x) && Number.isFinite(parsed?.y)) return parsed;
+  } catch {
+    /* 损坏就回默认 */
+  }
+  return null;
+}
+
+const SNAP_EDGE = 24;
+
+/**
+ * 松手吸附：距任一边 24pt 内贴该边；否则只吸最近的一条竖边。
+ * 浮岛是竖栏，水平拖动时不该突然贴到顶部。
+ */
+function snapIsland(pos, w, h) {
+  const right = window.innerWidth - (pos.x + w) - ISLAND_MARGIN;
+  const bottom = window.innerHeight - (pos.y + h) - ISLAND_MARGIN;
+  const candidates = [
+    { d: pos.x - ISLAND_MARGIN, x: ISLAND_MARGIN, y: pos.y },
+    { d: right, x: window.innerWidth - w - ISLAND_MARGIN, y: pos.y },
+    { d: pos.y - ISLAND_TOP_MIN, x: pos.x, y: ISLAND_TOP_MIN },
+    { d: bottom, x: pos.x, y: window.innerHeight - h - ISLAND_MARGIN }
+  ];
+  const near = candidates.filter((item) => item.d <= SNAP_EDGE);
+  const best = near.length
+    ? near.reduce((a, b) => (b.d < a.d ? b : a))
+    : pos.x - ISLAND_MARGIN <= right
+      ? candidates[0]
+      : candidates[1];
+  return clampIsland({ x: best.x, y: best.y }, w, h);
+}
+
 export function TabletShell({ onOpenSettings }) {
   const [openPanel, setOpenPanel] = useState(null);
   const [side, setSide] = useState("right");
@@ -69,6 +118,9 @@ export function TabletShell({ onOpenSettings }) {
   const [teleOpen, setTeleOpen] = useState(true);
   const [boards, setBoards] = useState([]);
   const [activeBoard, setActiveBoard] = useState(null);
+  const [islandPos, setIslandPos] = useState(loadIslandPos);
+  const [islandDragging, setIslandDragging] = useState(false);
+  const islandRef = useRef(null);
   const dragRef = useRef(null);
   // 笔最近一次落点：径向菜单和样式气泡都以它为中心，而不是屏幕中心
   const penRef = useRef({ x: window.innerWidth / 2, y: window.innerHeight / 2 });
@@ -190,6 +242,60 @@ export function TabletShell({ onOpenSettings }) {
   useEffect(() => {
     radialRef.current = radial;
   }, [radial]);
+
+  // 浮岛位置：首次挂载后量一次尺寸，落到右侧垂直居中；之后全部用绝对坐标
+  useLayoutEffect(() => {
+    if (islandPos) return;
+    const el = islandRef.current;
+    if (!el) return;
+    const rect = el.getBoundingClientRect();
+    setIslandPos(
+      clampIsland(
+        { x: window.innerWidth - rect.width - ISLAND_MARGIN, y: (window.innerHeight - rect.height) / 2 },
+        rect.width,
+        rect.height
+      )
+    );
+  }, [islandPos]);
+
+  // 拖动结束后重新夹回窗口，并让面板方向跟着浮岛所在的半边
+  useEffect(() => {
+    if (islandDragging) return;
+    const el = islandRef.current;
+    if (!el) return;
+    const rect = el.getBoundingClientRect();
+    setSide(rect.left + rect.width / 2 < window.innerWidth / 2 ? "left" : "right");
+    setIslandPos((pos) => {
+      if (!pos) return pos;
+      const next = clampIsland(pos, rect.width, rect.height);
+      return next.x === pos.x && next.y === pos.y ? pos : next;
+    });
+  }, [islandDragging]);
+
+  // 窗口尺寸变化时把浮岛拉回可视区
+  useEffect(() => {
+    const onResize = () => {
+      const el = islandRef.current;
+      if (!el || !islandPos) return;
+      setIslandPos((pos) => {
+        if (!pos) return pos;
+        const next = clampIsland(pos, el.offsetWidth, el.offsetHeight);
+        return next.x === pos.x && next.y === pos.y ? pos : next;
+      });
+    };
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, [islandPos]);
+
+  // 记住位置，重启后恢复
+  useEffect(() => {
+    if (!islandPos) return;
+    try {
+      localStorage.setItem(ISLAND_KEY, JSON.stringify(islandPos));
+    } catch {
+      /* 空间不足就放弃 */
+    }
+  }, [islandPos]);
 
   useEffect(() => {
     const onMouse = (event) => {
@@ -454,28 +560,55 @@ export function TabletShell({ onOpenSettings }) {
     [applyTool]
   );
 
-  // 拖动换边：按住把手移动，越过窗口中轴就翻到另一侧
+  // 拖动浮岛：按住把手实时跟手，松手吸附到最近的边
   const onGripDown = (event) => {
     event.preventDefault();
-    dragRef.current = { startX: event.clientX, side };
+    const el = islandRef.current;
+    if (!el) return;
+    const rect = el.getBoundingClientRect();
+    const drag = {
+      dx: event.clientX - rect.left,
+      dy: event.clientY - rect.top,
+      w: rect.width,
+      h: rect.height,
+      moved: false
+    };
+    dragRef.current = drag;
+    setIslandDragging(true);
     const onMove = (moveEvent) => {
-      const drag = dragRef.current;
-      if (!drag) return;
-      const mid = window.innerWidth / 2;
-      const next = moveEvent.clientX < mid ? "left" : "right";
-      if (next !== drag.side) {
-        drag.side = next;
-        setSide(next);
-      }
+      drag.moved = true;
+      setIslandPos(
+        clampIsland({ x: moveEvent.clientX - drag.dx, y: moveEvent.clientY - drag.dy }, drag.w, drag.h)
+      );
     };
     const onUp = () => {
-      dragRef.current = null;
       window.removeEventListener("pointermove", onMove);
       window.removeEventListener("pointerup", onUp);
+      dragRef.current = null;
+      setIslandDragging(false);
+      if (!drag.moved) return;
+      setIslandPos((pos) => {
+        if (!pos) return pos;
+        const snapped = snapIsland(pos, drag.w, drag.h);
+        // 直接在这里定面板朝向，不依赖下一次 effect 的时序
+        setSide(snapped.x + drag.w / 2 < window.innerWidth / 2 ? "left" : "right");
+        return snapped;
+      });
     };
     window.addEventListener("pointermove", onMove);
     window.addEventListener("pointerup", onUp);
   };
+
+  // 双击把手：复位到右侧、垂直居中
+  const resetIsland = useCallback(() => {
+    const el = islandRef.current;
+    const w = el?.offsetWidth || 84;
+    const h = el?.offsetHeight || 420;
+    setIslandPos(
+      clampIsland({ x: window.innerWidth - w - ISLAND_MARGIN, y: (window.innerHeight - h) / 2 }, w, h)
+    );
+    setSide("right");
+  }, []);
 
   const closeAll = useCallback(() => {
     setOpenPanel(null);
@@ -582,13 +715,19 @@ export function TabletShell({ onOpenSettings }) {
         />
       </div>
 
-      {/* 右侧浮岛 */}
-      <div className={`ts-island ts-island--${side}`}>
+      {/* 浮岛：默认右侧居中，可拖到任意位置，松手吸附最近边 */}
+      <div
+        ref={islandRef}
+        className={`ts-island ts-island--${side}${islandPos ? " is-positioned" : ""}${
+          islandDragging ? " is-dragging" : ""
+        }`}
+        style={islandPos ? { left: islandPos.x, top: islandPos.y } : undefined}
+      >
         <div
           className="ts-island-grip"
-          title="拖动换边"
+          title="拖动浮岛（双击复位）"
           onPointerDown={onGripDown}
-          onDoubleClick={() => setSide("right")}
+          onDoubleClick={resetIsland}
         >
           <Icons.grip />
         </div>
