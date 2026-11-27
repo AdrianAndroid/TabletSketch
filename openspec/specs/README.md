@@ -27,6 +27,8 @@
 | 2026-11-27 | `add-mouse-input` | 已归档：鼠标接入统一虚拟笔，右键 / `\` 开样式环，小圆点与笔触边界 |
 | 2026-11-27 | `turn-radial-menu-into-style-wheel` | 已归档：侧键 1 改为两级样式环，旧动作迁到浮岛「更多」 |
 | 2026-11-27 | `add-app-icon` | 已归档：自绘应用图标，CoreGraphics 生成全尺寸 `.icns` |
+| 2026-11-27 | `restore-excalidraw-fork` | 已归档：恢复 Excalidraw fork submodule（撤销 drop-unused-excalidraw-fork，无行为变化） |
+| 2026-11-27 | `add-stable-code-signing` | 已归档：固定自签身份、签名校验、覆盖安装到 `/Applications` |
 
 ## 已知未解决
 
