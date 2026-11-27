@@ -12,9 +12,11 @@
 
 ## 当前状态
 
-基线：`v0.18.1`（commit `a2ec288`），跟随官方仓库，尚未切到自己的 fork。
-改动：**暂无**。首个可运行版本先不碰源码，用合成 PointerEvent 验证压感链路；
-链路通了再按下面的计划改。
+基线：`v0.18.1`（commit `a2ec288`）。
+**已切到自己的 fork**：`AdrianAndroid/excalidraw`，submodule url 指向 fork，基线 commit 上建专用分支 `tablet-sketch/0.18.1`，tag `v0.18.1` 已补推到 fork；submodule 内另挂 `upstream` remote 指回官方仓库用于同步。
+构建暂仍走 npm 包 `@excalidraw/excalidraw@0.18.1`，等首个改源码的需求再切依赖到 submodule。
+改动：**暂无**。首个可运行版本不碰源码，用合成 PointerEvent 验证压感链路；
+链路通了再按下面的计划改（在 `tablet-sketch/0.18.1` 分支上）。
 
 ## 计划中的改动
 
