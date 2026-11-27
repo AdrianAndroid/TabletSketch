@@ -6,10 +6,10 @@
 |---|---|---|
 | [`pen-input`](pen-input/spec.md) | 设备识别、三通道职责、三态判定、压力整形、板载 8 键、映射范围、独占现状、统一虚拟笔、输入仲裁、鼠标边界 | bootstrap / seize / onboard-pad-visualizer / window-as-pad / map-onboard-keys / add-mouse-input |
 | [`canvas-mapping`](canvas-mapping/spec.md) | 画布比例、等比映射、越界丢弃、画布锁定 | bootstrap-tablet-sketch |
-| [`pen-first-ui`](pen-first-ui/spec.md) | 窗口即板面、按键带、右侧浮岛、下拉、两级样式环、鼠标入口、工具选择持久化、输入分层与冲突裁决、输入呈现性能、笔直接拖动把手、样式环不透明、左侧样式岛、工具岛禁左、读数板固定右上、悬停即弹出取值条、取值项笔高亮、图元样式类别按 Excalidraw 截图校准 | bootstrap-tablet-sketch / window-as-pad / add-mouse-input / turn-radial-menu-into-style-wheel / fix-island-tool-persistence / align-pen-tool-with-mouse / clarify-pen-first-input-priority / optimize-input-render-performance / fix-island-drag-with-pen / fix-radial-opacity / add-left-style-island / fix-left-style-hover-popup / fix-value-item-pen-hover / align-style-categories-with-excalidraw |
+| [`pen-first-ui`](pen-first-ui/spec.md) | 窗口即板面、按键带、右侧浮岛、下拉、两级样式环、鼠标入口、工具选择持久化、输入分层与冲突裁决、输入呈现性能、笔直接拖动把手、样式环不透明、左侧样式岛、工具岛禁左、读数板固定右上、悬停即弹出取值条、取值项笔高亮、图元样式类别按 Excalidraw 截图校准、笔侧键 2 工具环 | bootstrap-tablet-sketch / window-as-pad / add-mouse-input / turn-radial-menu-into-style-wheel / fix-island-tool-persistence / align-pen-tool-with-mouse / clarify-pen-first-input-priority / optimize-input-render-performance / fix-island-drag-with-pen / fix-radial-opacity / add-left-style-island / fix-left-style-hover-popup / fix-value-item-pen-hover / align-style-categories-with-excalidraw / add-pen-side-key2-tool-ring |
 | [`sketch-document`](sketch-document/spec.md) | 多画布、`.excalidraw`、自动保存、导入导出、素材库 | bootstrap-tablet-sketch |
 | [`app-settings`](app-settings/spec.md) | 设置入口、设置小窗、可定制范围、持久化 | bootstrap-tablet-sketch / turn-radial-menu-into-style-wheel |
-| [`express-keys`](express-keys/spec.md) | 8 板载键 + 2 笔侧键、默认映射、持久化 | bootstrap-tablet-sketch / map-onboard-keys / turn-radial-menu-into-style-wheel |
+| [`express-keys`](express-keys/spec.md) | 8 板载键 + 2 笔侧键、默认映射、侧键 2 工具环、持久化 | bootstrap-tablet-sketch / map-onboard-keys / turn-radial-menu-into-style-wheel / add-pen-side-key2-tool-ring |
 | [`app-lifecycle`](app-lifecycle/spec.md) | 独立 App、入口、权限、无设备回退、单实例 | bootstrap-tablet-sketch / add-mouse-input |
 | [`app-icon`](app-icon/spec.md) | 自有图标、全尺寸、可重复生成 | add-app-icon |
 
@@ -40,6 +40,7 @@
 | 2026-11-28 | `keep-app-window-for-review` | 已归档：R12 每轮开发完成保留可真机体验的运行窗口（无行为变化） |
 | 2026-11-28 | `fix-value-item-pen-hover` | 已归档：取值项改由笔位置驱动 is-hover，笔悬停即高亮 |
 | 2026-11-28 | `align-style-categories-with-excalidraw` | 已归档：按截图校准椭圆/直线/箭头/自由笔的样式类别映射 |
+| 2026-11-28 | `add-pen-side-key2-tool-ring` | 已归档：笔侧键 2 改为浮岛同源工具环，样式气泡撤下侧键 |
 
 ## 已知未解决
 

@@ -9,26 +9,9 @@ import { PadBand } from "./PadBand.jsx";
 import { PenTelemetry, PenTelemetryChip } from "./PenTelemetry.jsx";
 import { LeftStyleIsland } from "./LeftStyleIsland.jsx";
 import { buildLevel1, buildLevel2, categoryLabel } from "./style-wheel";
+import { buildToolWheel } from "./tool-wheel";
+import { DEFAULT_SLOTS, TOOL_LABEL } from "./tool-slots";
 import "./chrome.css";
-
-/** 浮岛默认槽位：前 8 格与板载键 1–8 一一对应。 */
-const DEFAULT_SLOTS = [
-  { id: "menu", icon: "menu", label: "菜单", panel: "menu" },
-  { id: "canvas", icon: "canvas", label: "画布", panel: "canvas" },
-  { id: "library", icon: "library", label: "素材", panel: "library" },
-  { id: "pen", icon: "pen", label: "笔", tool: "freedraw" },
-  { id: "eraser", icon: "eraser", label: "擦", tool: "eraser" },
-  { id: "hand", icon: "hand", label: "手", tool: "hand" },
-  { id: "select", icon: "select", label: "选", tool: "selection" },
-  { id: "rectangle", icon: "rectangle", label: "矩", tool: "rectangle" },
-  { id: "ellipse", icon: "ellipse", label: "椭", tool: "ellipse" },
-  { id: "arrow", icon: "arrow", label: "箭", tool: "arrow" },
-  { id: "text", icon: "text", label: "字", tool: "text" },
-  { id: "diamond", icon: "diamond", label: "菱", tool: "diamond" },
-  { id: "line", icon: "line", label: "线", tool: "line" },
-  { id: "image", icon: "image", label: "图", tool: "image" },
-  { id: "lock", icon: "lock", label: "锁", action: "lock" }
-];
 
 /** 双排上限 16 格，超过部分进「更多」。 */
 const VISIBLE_LIMIT = 15;
@@ -37,20 +20,6 @@ const VISIBLE_LIMIT = 15;
 // 否则任何依赖 [visible] 的 effect 都会被反复清理/重订阅。
 const VISIBLE_SLOTS = DEFAULT_SLOTS.slice(0, VISIBLE_LIMIT);
 const OVERFLOW_SLOTS = DEFAULT_SLOTS.slice(VISIBLE_LIMIT);
-
-const TOOL_LABEL = {
-  freedraw: "笔",
-  eraser: "橡皮",
-  hand: "平移",
-  selection: "选择",
-  rectangle: "矩形",
-  ellipse: "椭圆",
-  arrow: "箭头",
-  line: "直线",
-  text: "文字",
-  diamond: "菱形",
-  image: "图片"
-};
 
 function bridge() {
   return window.tabletSketch ?? null;
@@ -193,7 +162,7 @@ export function TabletShell({ onOpenSettings }) {
       if (radialRef.current) return;
       if (kind === "side") {
         if (keys.includes(0)) openRadial(source === "mouse" ? "mouse" : "pen");
-        if (keys.includes(1)) openBubble();
+        if (keys.includes(1)) openToolRadial(source === "mouse" ? "mouse" : "pen");
         if (keys.includes(2)) applyTool("eraser");
         return;
       }
@@ -379,6 +348,29 @@ export function TabletShell({ onOpenSettings }) {
     setRadial(next);
   }, []);
 
+  // 浮岛与笔侧键 2 工具环共用的执行路径，避免两套工具表各自派发。
+  const activate = useCallback(
+    (slot) => {
+      if (slot.panel) {
+        setRadialState(null);
+        setBubble(null);
+        setOpenPanel((current) => (current === slot.panel ? null : slot.panel));
+        return;
+      }
+      if (slot.tool) {
+        applyTool(slot.tool);
+        setOpenPanel(null);
+        return;
+      }
+      if (slot.action === "lock") {
+        const api = bridge();
+        const context = api?.getContext?.();
+        if (context?.selectedTypes.length) api.setStyle({ locked: true });
+      }
+    },
+    [applyTool, setRadialState]
+  );
+
   const openRadial = useCallback(
     (source = "pen") => {
       const api = bridge();
@@ -410,6 +402,24 @@ export function TabletShell({ onOpenSettings }) {
     [setRadialState, showToast]
   );
 
+  // 笔侧键 2：与键 1 共用弹出壳，但内容是浮岛工具槽位。
+  const openToolRadial = useCallback(
+    (source = "pen") => {
+      const api = bridge();
+      if (!api) return;
+      if (api.isStrokeActive?.()) return;
+      const context = api.getContext?.() || null;
+      const built = buildToolWheel(api.getTool?.(), context);
+      const point = source === "mouse" ? mouseRef.current : penRef.current;
+      setOpenPanel(null);
+      setBubble(null);
+      setSettingsOpen(false);
+      setTeleOpen(false);
+      setRadialState({ ...built, x: point.x, y: point.y, source, context, outerOpen: false });
+    },
+    [setRadialState]
+  );
+
   const closeRadial = useCallback(() => {
     setRadialState(null);
   }, [setRadialState]);
@@ -434,6 +444,11 @@ export function TabletShell({ onOpenSettings }) {
         setRadialState({ ...current, outerOpen: true });
         return;
       }
+      if (slot.kind === "tool") {
+        activate(slot);
+        setRadialState(null);
+        return;
+      }
       if (slot.kind === "category") {
         openLevel2(slot.key);
         return;
@@ -451,7 +466,7 @@ export function TabletShell({ onOpenSettings }) {
         }
       }
     },
-    [openLevel2, setRadialState, showToast]
+    [activate, openLevel2, setRadialState, showToast]
   );
 
   const handleWheelCenter = useCallback(() => {
@@ -564,6 +579,7 @@ export function TabletShell({ onOpenSettings }) {
     const handler = (event) => {
       const what = event.detail;
       if (what === "radial") openRadial("pen");
+      else if (what === "toolring") openToolRadial("pen");
       else if (what === "bubble") openBubble();
       else if (what === "settings") setSettingsOpen(true);
       else if (["menu", "canvas", "library", "more"].includes(what)) {
@@ -579,30 +595,7 @@ export function TabletShell({ onOpenSettings }) {
     };
     window.addEventListener("tablet:demo", handler);
     return () => window.removeEventListener("tablet:demo", handler);
-  }, [openRadial, openBubble, setRadialState]);
-
-  const activate = useCallback(
-    (slot) => {
-      if (slot.panel) {
-        setRadialState(null);
-        setBubble(null);
-        setOpenPanel((current) => (current === slot.panel ? null : slot.panel));
-        return;
-      }
-      if (slot.tool) {
-        applyTool(slot.tool);
-        setOpenPanel(null);
-        return;
-      }
-      if (slot.action === "lock") {
-        const api = bridge();
-        const context = api?.getContext?.();
-        if (context?.selectedTypes.length) api.setStyle({ locked: true });
-        return;
-      }
-    },
-    [applyTool]
-  );
+  }, [openRadial, openToolRadial, openBubble, setRadialState]);
 
   // 拖动浮岛：按住把手跟手，松手吸附到最近的边。
   // 拖动期间只改 transform（合成层），不 setState、不触发布局与写盘。

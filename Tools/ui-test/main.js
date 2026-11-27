@@ -389,6 +389,30 @@ const SCENARIO = String.raw`(async () => {
   log("样式环高亮扇区实色", isSolidFill(radialFills[1]), radialFills[1] || "missing");
   probeSvg.remove();
 
+  // ---------- 笔侧键 2 工具环 ----------
+  window.dispatchEvent(new CustomEvent("tablet:keys", { detail: { kind: "side", keys: [1], source: "pen" } }));
+  await sleep(180);
+  log("侧键2打开环形菜单", !!$(".ts-radial"), $(".ts-radial") ? "shown" : "missing");
+  log("工具环内圈9槽", $$(".ts-radial-inner .ts-radial-slot").length === 9,
+      $$(".ts-radial-inner .ts-radial-slot").length + " 槽");
+  log("侧键2不再弹样式气泡", !$(".ts-bubble"), $(".ts-bubble") ? "still shown" : "hidden");
+  const moreSlot = $('.ts-radial [data-ts-radial-key="more"]');
+  log("工具环含更多入口", !!moreSlot, moreSlot ? "found" : "missing");
+  if (moreSlot) {
+    click(moreSlot);
+    await sleep(180);
+    log("更多展开5个外圈槽位", $$(".ts-radial-outer .ts-radial-slot").length === 5,
+        $$(".ts-radial-outer .ts-radial-slot").length + " 槽");
+    const arrowSlot = $('.ts-radial [data-ts-radial-key="arrow"]');
+    if (arrowSlot) {
+      click(arrowSlot);
+      await sleep(180);
+      log("工具环点选切换工具", window.tabletSketch?.getTool?.() === "arrow",
+          window.tabletSketch?.getTool?.() || "missing");
+      log("点选后工具环关闭", !$(".ts-radial"), $(".ts-radial") ? "still shown" : "closed");
+    }
+  }
+
   // ---------- 左侧样式浮动岛 ----------
   window.tabletSketch?.clearSelection?.();
   await sleep(500);

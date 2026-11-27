@@ -96,6 +96,8 @@ function Ring({ slots, ring, count, radius, innerRadius, center, showLabel, hove
     return (
       <g
         className="ts-radial-slot"
+        data-ts-radial-key={slot.key}
+        data-ts-radial-ring={ring}
         style={{ "--i": 0, transformOrigin: `${center}px ${center}px` }}
         onClick={() => onAction(slot, ring)}
       >
@@ -124,6 +126,8 @@ function Ring({ slots, ring, count, radius, innerRadius, center, showLabel, hove
           <g
             key={slot.key}
             className="ts-radial-slot"
+            data-ts-radial-key={slot.key}
+            data-ts-radial-ring={ring}
             style={{ "--i": index, transformOrigin: `${center}px ${center}px` }}
             onClick={() => onAction(slot, ring)}
           >
