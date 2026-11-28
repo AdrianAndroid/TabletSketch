@@ -1173,6 +1173,19 @@ body.tablet-mode {
   accent-color: var(--ts-accent);
 }
 
+.ts-field-control select {
+  min-width: 120px;
+  max-width: 200px;
+  height: 26px;
+  padding: 0 6px;
+  border: 1px solid var(--ts-line-strong);
+  border-radius: 6px;
+  background: var(--ts-surface-solid);
+  color: var(--ts-text);
+  font-size: 12px;
+  cursor: pointer;
+}
+
 .ts-field-value {
   font-size: 11px;
   color: var(--ts-text-dim);
@@ -1697,43 +1710,69 @@ body.tablet-mode {
   flex: 0 0 auto;
 }
 
-/* 常态完全不可见，只保热区；按下瞬间才显形 */
+/* 卡片式板载键：圆形编号 + 绑定功能图标，等距平分，常显淡色、按下整卡高亮 */
 .ts-band-key {
   position: absolute;
   top: 50%;
-  width: calc(26px * var(--ts-ui-scale));
-  height: calc(26px * var(--ts-ui-scale));
-  margin: calc(-13px * var(--ts-ui-scale)) 0 0 calc(-13px * var(--ts-ui-scale));
-  padding: 0;
-  border-radius: 50%;
+  width: calc(64px * var(--ts-ui-scale));
+  height: calc(30px * var(--ts-ui-scale));
+  margin: calc(-15px * var(--ts-ui-scale)) 0 0 calc(-32px * var(--ts-ui-scale));
+  padding: 0 calc(5px * var(--ts-ui-scale));
+  border-radius: calc(10px * var(--ts-ui-scale));
   display: flex;
   align-items: center;
-  justify-content: center;
-  background: transparent;
-  color: transparent;
-  font-size: 12px;
-  font-weight: 600;
+  justify-content: flex-start;
+  gap: calc(6px * var(--ts-ui-scale));
+  background: #fbfcfd;
+  box-shadow: inset 0 0 0 1px #e9ecf2;
+  color: #b6bcc8;
   -webkit-app-region: no-drag;
   transition: none;
 }
 
-/* 常态：极淡的圈 + 淡灰数字，能看出键位但不抢画面 */
-.ts-band-key {
-  background: #fbfcfd;
-  box-shadow: inset 0 0 0 1px #e9ecf2;
+.ts-band-key-num {
+  flex: none;
+  width: calc(22px * var(--ts-ui-scale));
+  height: calc(22px * var(--ts-ui-scale));
+  border-radius: 50%;
+  background: rgba(182, 188, 200, 0.14);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: calc(11px * var(--ts-ui-scale));
+  font-weight: 600;
+  line-height: 1;
 }
 
-.ts-layer .ts-band-key,
-.ts-layer .ts-band-key span {
-  color: #b6bcc8;
+.ts-band-key-icon {
+  flex: none;
+  width: calc(18px * var(--ts-ui-scale));
+  height: calc(18px * var(--ts-ui-scale));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.ts-band-key-icon svg {
+  width: 100%;
+  height: 100%;
 }
 
 .ts-layer .ts-band-key.is-lit,
-.ts-layer .ts-band-key.is-lit span {
+.ts-layer .ts-band-key.is-lit .ts-band-key-num {
   background: var(--ts-accent);
   color: #ffffff;
   background-clip: padding-box;
-  box-shadow: 0 0 0 6px rgba(10, 132, 255, 0.14);
+  box-shadow: 0 0 0 calc(3px * var(--ts-ui-scale)) rgba(10, 132, 255, 0.14);
+}
+
+.ts-layer .ts-band-key.is-lit .ts-band-key-num {
+  background: rgba(255, 255, 255, 0.24);
+  box-shadow: none;
+}
+
+.ts-layer .ts-band-key.is-lit .ts-band-key-icon {
+  color: #ffffff;
 }
 
 /* ------------------------------------------------------ 压感 / 倾斜读数（调试） */

@@ -45,7 +45,6 @@ const GROUPS = [
       { id: "layout-right", label: "右浮动岛", icon: "library" },
       { id: "layout-key1", label: "手写笔键 1", icon: "select" },
       { id: "layout-key2", label: "手写笔键 2", icon: "more" },
-      { id: "layout-onboard", label: "板载键", icon: "grip" },
       { id: "layout-profiles", label: "配置档", icon: "save" }
     ]
   },
@@ -56,8 +55,7 @@ const SURFACE_PAGE = {
   "layout-left": "leftIsland",
   "layout-right": "rightIsland",
   "layout-key1": "penKey1",
-  "layout-key2": "penKey2",
-  "layout-onboard": "onboardKeys"
+  "layout-key2": "penKey2"
 };
 
 const PEN_DEFAULTS = { fadeOnTouch: true, pressureGamma: 1.0, minStrokeWidth: 1, background: "plain" };
@@ -708,14 +706,32 @@ export function SettingsWindow({ onClose, onClearCanvas }) {
 
     if (page === "keys") {
       const ids = layout.surfaces.onboardKeys.ids;
+      const groups = ACTION_GROUPS.filter((group) => group.id !== "style");
+      const setKey = (index, id) => {
+        const next = ids.slice();
+        next[index] = id;
+        patchSurface("onboardKeys", { ids: next });
+      };
       return (
-        <Section title="键位" icon="grip" note="板载键由应用接管，动作可在「布局 → 板载键」中定制。">
-          {ids.map((id, index) => (
-            <Field key={index} label={`板载键 ${index + 1}`}>
-              <span className="ts-field-value">{ACTION_LIBRARY[id]?.label || "未设置"}</span>
-            </Field>
-          ))}
-        </Section>
+        <>
+          <Section title="键位" icon="grip" note="板载键由应用接管。每行下拉选功能，改动即时生效；实体键与屏幕按键带都按这里的绑定执行。">
+            {ids.map((id, index) => (
+              <Field key={index} label={`板载键 ${index + 1}`}>
+                <select value={ACTION_LIBRARY[id] ? id : ""} onChange={(event) => setKey(index, event.target.value)}>
+                  {!ACTION_LIBRARY[id] ? <option value="">未设置</option> : null}
+                  {groups.map((group) => (
+                    <optgroup key={group.id} label={group.label}>
+                      {group.ids.map((actionId) => (
+                        <option key={actionId} value={actionId}>{ACTION_LIBRARY[actionId]?.label || actionId}</option>
+                      ))}
+                    </optgroup>
+                  ))}
+                </select>
+              </Field>
+            ))}
+          </Section>
+          <button type="button" className="ts-btn is-wide" onClick={() => restoreSurface("onboardKeys")}>恢复板载键默认</button>
+        </>
       );
     }
 

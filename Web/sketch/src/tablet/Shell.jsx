@@ -877,6 +877,7 @@ export function TabletShell({ onOpenSettings }) {
 
         <PadBand
           flash={padFlash}
+          bindings={layout.surfaces.onboardKeys.ids}
           onKey={(index) => {
             const id = layout.surfaces.onboardKeys.ids[index];
             const slot = resolveSlot(id);

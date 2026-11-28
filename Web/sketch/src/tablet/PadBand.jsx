@@ -1,14 +1,24 @@
 import React, { useEffect, useRef, useState } from "react";
+import { Icons } from "./icons";
+import { ACTION_LIBRARY } from "./layout-config.js";
 
-// 真机 Deco 640：板框 876×696，8 键中心 x = 173/267/360/454/546/639/731/824，板框左界 60。
-// 归一化后 ≈ 0.129 起、间隔 0.106，直接当百分比用，窗口缩放时疏密和真机一致。
-const KEY_CENTER = [0.129, 0.236, 0.342, 0.45, 0.555, 0.661, 0.766, 0.872];
+// 8 键等距平分整条按键带：中心在 6.25% / 18.75% / … / 93.75%。
+const KEY_CENTER = Array.from({ length: 8 }, (_, i) => (i + 0.5) / 8);
+
+const DEFAULT_BINDINGS = ["pen", "eraser", "hand", "select", "rectangle", "ellipse", "arrow", "undo"];
+
+function KeyIcon({ id }) {
+  const def = ACTION_LIBRARY[id];
+  const name = def?.icon || "more";
+  const Icon = Icons[name] || Icons.more;
+  return <Icon />;
+}
 
 /**
- * 板载键条：8 个键常态完全不可见（只留热区），按下那一刻才在真机对应的位置亮一下。
- * 用笔直接点这些位置也能触发同一动作，用于没有接板子时的自测。
+ * 板载键条：8 个键等距平分窗口顶部，常显淡色卡片（圆形编号 + 绑定功能图标），
+ * 按下那一刻整卡高亮。用笔直接点这些位置也能触发同一动作，用于没有接板子时的自测。
  */
-export function PadBand({ flash, onKey }) {
+export function PadBand({ flash, onKey, bindings }) {
   const [lit, setLit] = useState(() => new Set());
   const timers = useRef(new Map());
 
@@ -36,25 +46,30 @@ export function PadBand({ flash, onKey }) {
 
   return (
     <div className="ts-band-keys">
-      {KEY_CENTER.map((center, index) => (
-        <button
-          key={index}
-          type="button"
-          className={`ts-band-key${lit.has(index) ? " is-lit" : ""}`}
-          style={{ left: `${center * 100}%` }}
-          title={`板载键 ${index + 1}`}
-          onPointerDown={(event) => {
-            // 用 pointerdown 而不是 click：不等成对事件，按下即响应
-            event.preventDefault();
-            event.stopPropagation();
-            console.log("[band] press key", index + 1);
-            light(index);
-            onKey?.(index);
-          }}
-        >
-          <span>{index + 1}</span>
-        </button>
-      ))}
+      {KEY_CENTER.map((center, index) => {
+        const id = bindings?.[index] || DEFAULT_BINDINGS[index];
+        const label = ACTION_LIBRARY[id]?.label || "未设置";
+        return (
+          <button
+            key={index}
+            type="button"
+            className={`ts-band-key${lit.has(index) ? " is-lit" : ""}`}
+            style={{ left: `${center * 100}%` }}
+            title={`板载键 ${index + 1} · ${label}`}
+            onPointerDown={(event) => {
+              // 用 pointerdown 而不是 click：不等成对事件，按下即响应
+              event.preventDefault();
+              event.stopPropagation();
+              console.log("[band] press key", index + 1);
+              light(index);
+              onKey?.(index);
+            }}
+          >
+            <span className="ts-band-key-num">{index + 1}</span>
+            <span className="ts-band-key-icon"><KeyIcon id={id} /></span>
+          </button>
+        );
+      })}
     </div>
   );
 }

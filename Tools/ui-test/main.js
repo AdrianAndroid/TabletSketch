@@ -210,7 +210,8 @@ const SCENARIO = String.raw`(async () => {
     await sleep(220);
     log("设置窗打开", !!$(".ts-card"), $(".ts-card-title")?.textContent || "");
     const navTexts = $$(".ts-nav-item").map((n) => n.textContent.trim());
-    log("设置含「布局」分组五页", ["左浮动岛", "右浮动岛", "手写笔键 1", "手写笔键 2", "板载键"].every((label) => navTexts.includes(label)), navTexts.join(" | "));
+    log("设置含「布局」分组四页", ["左浮动岛", "右浮动岛", "手写笔键 1", "手写笔键 2"].every((label) => navTexts.includes(label)), navTexts.join(" | "));
+    log("板载键重复入口已移除", !navTexts.includes("板载键"), navTexts.join(" | "));
     log("设置含「配置档」页", navTexts.includes("配置档"), "");
     log("设置含「图形样式」页", navTexts.includes("图形样式"), navTexts.join(" | "));
     log("旧死设置页已删除", !navTexts.includes("样式环") && !navTexts.includes("更多") && !navTexts.includes("气泡"), "");
@@ -240,13 +241,6 @@ const SCENARIO = String.raw`(async () => {
       await sleep(120);
       log("样式取值可展开编辑", !!$(".ts-values-body"), "");
     }
-
-    // 板载键页：改动作后广播布局事件。
-    const onboardNav = $$(".ts-nav-item").find((n) => n.textContent.includes("板载键"));
-    click(onboardNav);
-    await sleep(180);
-    const beforeSlots = $$(".ts-layout-chip").length;
-    log("板载键页显示 8 位", beforeSlots === 8, String(beforeSlots));
 
     click($(".ts-settings-head .ts-panel-close"));
     await sleep(120);
@@ -673,6 +667,52 @@ const SCENARIO = String.raw`(async () => {
   await sleep(120);
   log("拖拽测试后设置窗已关闭", !$(".ts-settings"), $(".ts-settings") ? "still open" : "closed");
 
+  // ---------- 键位统一：键位页下拉 + 顶部图标（独立打开） ----------
+  window.dispatchEvent(new Event("tablet:open-settings"));
+  await sleep(220);
+  const keysNav = $$(".ts-nav-item").find((n) => n.textContent.trim() === "键位");
+  log("设置含「键位」页", !!keysNav, "");
+  if (keysNav) {
+    click(keysNav);
+    await sleep(180);
+    const selects = $$(".ts-field-control select");
+    log("键位页 8 行下拉", selects.length === 8, String(selects.length));
+    log("下拉含全部动作组", $$(".ts-field-control select optgroup").length >= 3, String($$(".ts-field-control select optgroup").length));
+    log("键位页有恢复默认", $$(".ts-btn").some((b) => b.textContent.includes("恢复板载键默认")), "");
+
+    // 顶部 8 键等距平分、每键含编号与图标。
+    const bandKeys = $$(".ts-band-key");
+    log("顶部 8 键卡片", bandKeys.length === 8, String(bandKeys.length));
+    log("每键含圆形编号+图标", bandKeys.every((k) => !!k.querySelector(".ts-band-key-num") && !!k.querySelector(".ts-band-key-icon svg")), "");
+    if (bandKeys.length === 8) {
+      const centers = bandKeys.map((k) => { const r = k.getBoundingClientRect(); return r.left + r.width / 2; });
+      const gaps = centers.slice(1).map((c, i) => c - centers[i]);
+      const even = gaps.every((g) => Math.abs(g - gaps[0]) < 2);
+      log("8 键等距平分宽度", even && Math.abs(centers[0] - centers[7]) > 100, gaps.map((g) => Math.round(g)).join(","));
+    }
+
+    // 改第 1 个下拉的绑定：写入 onboardKeys.ids，顶部图标随之变化。
+    const first = selects[0];
+    const beforeIcon = $(".ts-band-key .ts-band-key-icon")?.innerHTML || "";
+    const target = Array.from(first.options).find((o) => o.value === "undo");
+    if (target) {
+      const setter = Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, "value")?.set;
+      setter?.call(first, "undo");
+      first.dispatchEvent(new Event("change", { bubbles: true }));
+      await sleep(180);
+      const ids = JSON.parse(localStorage.getItem("tablet.layout.v2") || "{}")?.surfaces?.onboardKeys?.ids || [];
+      log("下拉改绑定写入配置", ids[0] === "undo", ids[0]);
+      const afterIcon = $(".ts-band-key .ts-band-key-icon")?.innerHTML || "";
+      log("顶部图标随绑定变化", afterIcon !== beforeIcon, "changed=" + (afterIcon !== beforeIcon));
+      // 恢复默认，避免污染后续。
+      const restoreBtn = $$(".ts-btn").find((b) => b.textContent.includes("恢复板载键默认"));
+      if (restoreBtn) { click(restoreBtn); await sleep(120); }
+    }
+  }
+  click($(".ts-settings-head .ts-panel-close"));
+  await sleep(120);
+  log("键位测试后设置窗已关闭", !$(".ts-settings"), $(".ts-settings") ? "still open" : "closed");
+
   return results;
 })()`;
 
@@ -689,7 +729,7 @@ const SCALE_SCENARIO = String.raw`(async () => {
   log("按键带随缩放变高", bandH > 64, Math.round(bandH) + "px");
   const key = $(".ts-band-key");
   const keyW = key?.getBoundingClientRect().width || 0;
-  log("按键直径随缩放变大", keyW > 26, Math.round(keyW) + "px");
+  log("按键卡片随缩放变宽", keyW > 64, Math.round(keyW) + "px");
   const cell = $(".ts-cell");
   const cellW = cell?.getBoundingClientRect().width || 0;
   log("浮岛格随缩放变大", cellW > 44, Math.round(cellW) + "px");
@@ -700,7 +740,7 @@ const SCALE_SCENARIO = String.raw`(async () => {
     document.dispatchEvent(new CustomEvent("ts:hid", {
       detail: { t: "pen", ph: "hover", x: 0.5, y: 0.5, p: 0.5 }
     }));
-    await sleep(160);
+    await sleep(260);
     const cursor = $(".ts-pen-cursor");
     const tr = cursor?.style.transform || "";
     const m = tr.match(/translate3d\(([-\d.]+)px, ([-\d.]+)px/);

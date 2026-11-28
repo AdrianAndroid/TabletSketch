@@ -210,3 +210,18 @@ TabletSketch SHALL 提供设置能力，让用户无需手改配置文件即可�
 - **WHEN** `shapeStyles` 缺失、含未知图元或未知样式类别
 - **THEN** 校验 MUST 回落对应的内置默认映射
 - **AND** 设置面板与样式环 MUST 正常工作
+
+## 本次变更新增需求（unify-onboard-keybindings）
+
+### Requirement: 板载键统一入口
+
+设置 SHALL 只通过一个入口管理 8 个板载键的功能绑定，不再保留重复页面。
+
+#### Scenario: 键位页下拉编辑
+
+- **WHEN** 用户打开设置中的「输入 → 键位」
+- **THEN** MUST 以固定 8 行展示板载键 1–8，每行一个下拉菜单选择功能
+- **AND** 下拉选项 MUST 覆盖全部非样式动作（工具、面板、动作），与右浮岛候选池一致
+- **AND** 每个键 MUST 可独立选择功能，允许两个键绑定同一功能
+- **AND** 改动 MUST 写入 `layout.v2` 的 `onboardKeys.ids` 并即时广播
+- **AND** MUST 提供恢复板载键默认，且 MUST NOT 再存在「布局 → 板载键」重复入口
