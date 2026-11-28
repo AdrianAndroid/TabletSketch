@@ -161,7 +161,8 @@ export function RadialMenu({
   centerLabel = "取消",
   followPen = false,
   onAction,
-  onCenter
+  onCenter,
+  confirmRef
 }) {
   const [pointer, setPointer] = useState(null);
   const s = Number.isFinite(scale) && scale > 0 ? scale : 1;
@@ -213,6 +214,19 @@ export function RadialMenu({
 
   const hoveredSlot =
     hover && (hover.ring === "outer" ? outerSlots[hover.index] : slots[hover.index]);
+
+  // 笔侧键作为确认键：把「当前该执行什么」交给 Shell，走与扇区点击完全相同的路径。
+  // 悬停为空（中心圆内或环外）时等同点击中心。
+  useEffect(() => {
+    if (!confirmRef) return undefined;
+    confirmRef.current = () => {
+      if (hoveredSlot) onAction(hoveredSlot, hover?.ring || "inner");
+      else onCenter();
+    };
+    return () => {
+      confirmRef.current = null;
+    };
+  }, [confirmRef, hoveredSlot, hover, onAction, onCenter]);
 
   const tip = useMemo(() => {
     if (!hoveredSlot) return null;

@@ -151,6 +151,8 @@ export function TabletShell({ onOpenSettings }) {
   const cursorElRef = useRef(null);
   const cursorShapeRef = useRef(cursorShape);
   const radialRef = useRef(null);
+  // RadialMenu 写入「执行当前悬停扇区 / 中心」的函数，侧键确认时调用。
+  const wheelConfirmRef = useRef(null);
   const activateRef = useRef(null);
   const toastTimerRef = useRef(0);
   // 板载键去抖：固件会把同一次按压报成连续多帧（尤其按住不放），
@@ -228,13 +230,23 @@ export function TabletShell({ onOpenSettings }) {
     const onStatus = (event) => setHidStatus(event.detail);
     const onKeys = (event) => {
       const { kind, keys, source } = event.detail;
-      if (radialRef.current) return;
       if (kind === "side") {
+        const wheel = radialRef.current?.wheel;
+        if (wheel) {
+          // 环已打开：侧键作为确认键，各管各的环；交叉键无动作。
+          const confirmKey = wheel === "style" ? 0 : wheel === "tool" ? 1 : -1;
+          if (confirmKey >= 0 && keys.includes(confirmKey)) {
+            // 笔已离板时按最后悬停位置确认容易误操作。
+            if (source !== "pen" || penPresentRef.current) wheelConfirmRef.current?.();
+          }
+          return;
+        }
         if (keys.includes(0)) openRadial(source === "mouse" ? "mouse" : "pen");
         if (keys.includes(1)) openToolRadial(source === "mouse" ? "mouse" : "pen");
         if (keys.includes(2)) applyTool("eraser");
         return;
       }
+      if (radialRef.current) return;
       // 板载键：点亮位置并执行配置中的动作。键盘接口已被 seize，
       // 原生快捷键不会到达系统，动作完全由应用侧负责。
       const now = Date.now();
@@ -538,7 +550,7 @@ export function TabletShell({ onOpenSettings }) {
       setBubble(null);
       setSettingsOpen(false);
       setTeleOpen(false);
-      setRadialState({ ...built, x: point.x, y: point.y, source, context, outerOpen: false });
+      setRadialState({ ...built, x: point.x, y: point.y, source, context, wheel: "style", outerOpen: false });
     },
     [setRadialState, showToast]
   );
@@ -556,7 +568,7 @@ export function TabletShell({ onOpenSettings }) {
       setBubble(null);
       setSettingsOpen(false);
       setTeleOpen(false);
-      setRadialState({ ...built, x: point.x, y: point.y, source, context, outerOpen: false });
+      setRadialState({ ...built, x: point.x, y: point.y, source, context, wheel: "tool", outerOpen: false });
     },
     [setRadialState, openPanel]
   );
@@ -626,6 +638,7 @@ export function TabletShell({ onOpenSettings }) {
           y: current.y,
           source: current.source,
           context: current.context,
+          wheel: current.wheel,
           outerOpen: false
         });
       }
@@ -1017,6 +1030,7 @@ export function TabletShell({ onOpenSettings }) {
           followPen={radial.source === "pen"}
           onAction={handleWheelAction}
           onCenter={handleWheelCenter}
+          confirmRef={wheelConfirmRef}
         />
       ) : null}
 

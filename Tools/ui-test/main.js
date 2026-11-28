@@ -873,6 +873,113 @@ const SCENARIO = String.raw`(async () => {
     log("离板后保持原提示", ($(".ts-toast")?.textContent || "").includes("先选中图形"), $(".ts-toast")?.textContent || "");
   }
 
+  // 侧键确认环悬停扇区：键1样式环 / 键2工具环
+  const wheelCanvas = document.querySelector("canvas.excalidraw__canvas.interactive") || document.querySelector("canvas.excalidraw__canvas");
+  const wr = wheelCanvas?.getBoundingClientRect();
+  if (wr) {
+    const brW = window.tabletSketch;
+    const wx = Math.round(wr.left + wr.width * 0.5);
+    const wy = Math.round(wr.top + wr.height * 0.5);
+    const sideW = (n) => document.dispatchEvent(new CustomEvent("ts:hid", { detail: { t: "side", keys: [n] } }));
+    const keysW = () => $$(".ts-radial-slot").map((g) => g.getAttribute("data-ts-radial-key"));
+    const hoverKey = () => $$(".ts-radial-slot").find((g) => g.querySelector(".ts-radial-path.is-hover"))?.getAttribute("data-ts-radial-key");
+    const hoverArea = async (i) => {
+      const count = keysW().length;
+      const step = 360 / count;
+      const rad = (45 + Math.max(240, 180 + 15 * count) / 2) / 2;
+      const a = (-90 + i * step) * Math.PI / 180;
+      penClient("hover", wx + rad * Math.cos(a), wy + rad * Math.sin(a));
+      await sleep(220);
+    };
+
+    brW.loadScene({ elements: [] });
+    brW.setTool("freedraw");
+    await sleep(150);
+    penClient("began", wx - 140, wy); await sleep(80);
+    penClient("changed", wx, wy); await sleep(80);
+    penClient("changed", wx + 140, wy); await sleep(80);
+    penClient("ended", wx + 140, wy); await sleep(250);
+    brW.selectAll();
+    await sleep(150);
+    const colorBefore = brW.getContext()?.style?.strokeColor;
+    penClient("hover", wx, wy); await sleep(120);
+    sideW(0); await sleep(300);
+    log("侧键1弹出样式环", !!$(".ts-radial"));
+    await hoverArea(0);
+    log("一级描边扇区悬停", hoverKey() === "stroke", String(hoverKey()));
+    sideW(0); await sleep(300);
+    log("按键1确认进入二级", keysW().some((k) => k && k.includes(":")), keysW().join(","));
+    await hoverArea(1);
+    sideW(0); await sleep(300);
+    log("按键1确认写入取值", brW.getContext()?.style?.strokeColor !== colorBefore,
+        colorBefore + " -> " + brW.getContext()?.style?.strokeColor);
+    log("确认后样式环关闭", !$(".ts-radial"));
+
+    // 悬停中心 / 环外按键，等同点中心
+    penClient("hover", wx, wy); await sleep(120);
+    sideW(0); await sleep(300);
+    log("中心测试环已打开", !!$(".ts-radial"));
+    penClient("hover", wx, wy); await sleep(220);
+    sideW(0); await sleep(300);
+    log("悬停中心按键1关闭环", !$(".ts-radial"));
+
+    // 交叉键：样式环里按键2无动作
+    penClient("hover", wx, wy); await sleep(120);
+    sideW(0); await sleep(300);
+    await hoverArea(0);
+    const colorCross = brW.getContext()?.style?.strokeColor;
+    sideW(1); await sleep(300);
+    log("样式环里按键2无动作", !!$(".ts-radial") && brW.getContext()?.style?.strokeColor === colorCross,
+        "open=" + !!$(".ts-radial") + " color=" + brW.getContext()?.style?.strokeColor);
+    $(".ts-radial-center")?.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
+    await sleep(200);
+
+    // 工具环：按键2开 → 悬停 → 按键2确认
+    const toolBefore = brW.getTool();
+    penClient("hover", wx, wy); await sleep(120);
+    sideW(1); await sleep(300);
+    log("侧键2弹出工具环", !!$(".ts-radial") && keysW().includes("more"), keysW().join(","));
+    await hoverArea(1);
+    sideW(1); await sleep(300);
+    log("按键2确认工具并关环", !$(".ts-radial"), toolBefore + " -> " + brW.getTool());
+
+    // 笔已离板：不响应确认
+    penClient("hover", wx, wy); await sleep(120);
+    sideW(1); await sleep(300);
+    log("离板测试环已打开", !!$(".ts-radial"));
+    document.dispatchEvent(new CustomEvent("ts:hid", { detail: { t: "pen", ph: "leave" } }));
+    await sleep(120);
+    sideW(1); await sleep(300);
+    log("离板后按键2不确认", !!$(".ts-radial"));
+    penClient("hover", wx, wy); await sleep(120);
+    $(".ts-radial-center")?.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
+    await sleep(200);
+
+    // 鼠标入口打开的环，笔键仍可确认鼠标高亮的扇区
+    penClient("hover", wx, wy); await sleep(120);
+    brW.selectAll();
+    await sleep(200);
+    window.dispatchEvent(new Event("tablet:open-style-ring"));
+    await sleep(700);
+    log("鼠标入口样式环打开", !!$(".ts-radial"), "selected=" + brW.getContext()?.selectedCount);
+    const svgEl = $(".ts-radial-svg");
+    const paths = $$(".ts-radial-slot path");
+    if (svgEl && paths.length > 1) {
+      const path = paths[1];
+      const pt = path.getPointAtLength(path.getTotalLength() * 0.25);
+      const m = path.getScreenCTM();
+      const sx = m.a * pt.x + m.c * pt.y + m.e;
+      const sy = m.b * pt.x + m.d * pt.y + m.f;
+      svgEl.dispatchEvent(new PointerEvent("pointermove", { bubbles: true, clientX: sx, clientY: sy }));
+      await sleep(240);
+      log("鼠标高亮扇区", !!hoverKey(), String(hoverKey()));
+      const colorMouse = brW.getContext()?.style?.strokeColor;
+      sideW(0); await sleep(300);
+      log("笔键确认鼠标环", !$(".ts-radial") || keysW().some((k) => k && k.includes(":")),
+          colorMouse + " -> " + brW.getContext()?.style?.strokeColor);
+    }
+  }
+
   return results;
 })()`;
 
