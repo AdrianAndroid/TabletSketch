@@ -109,6 +109,26 @@ body.tablet-mode {
   transition: background 0.2s ease;
 }
 
+/* 顶栏权限提示：只在真的缺输入监控权限时出现，点击直达系统设置 */
+.ts-topbar-hid.is-action {
+  appearance: none;
+  border: 1px solid color-mix(in srgb, #d9822b 55%, transparent);
+  background: color-mix(in srgb, #d9822b 12%, transparent);
+  color: #c26a1c;
+  font: inherit;
+  font-size: 11px;
+  line-height: 1.4;
+  padding: 2px 8px;
+  border-radius: 999px;
+  cursor: pointer;
+  -webkit-app-region: no-drag;
+}
+
+.ts-topbar-hid.is-action:hover {
+  background: color-mix(in srgb, #d9822b 20%, transparent);
+  border-color: color-mix(in srgb, #d9822b 75%, transparent);
+}
+
 .ts-hid-dot.is-on {
   background: #30b158;
 }

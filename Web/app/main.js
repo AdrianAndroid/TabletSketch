@@ -4,7 +4,7 @@
 // 真正的 HID 读取在 Swift 小工具 tablet-sketch-hid 里，这里通过 spawn 拉起来，
 // 逐行读 stdout 的 JSON（见 hid-bridge.js）。
 
-const { app, BrowserWindow, Menu, ipcMain, nativeTheme, dialog } = require("electron");
+const { app, BrowserWindow, Menu, ipcMain, nativeTheme, dialog, shell } = require("electron");
 const path = require("node:path");
 const fsp = require("node:fs/promises");
 const { HidBridge } = require("./hid-bridge");
@@ -137,6 +137,10 @@ function createWindow() {
     height: 760,
     minWidth: 900,
     minHeight: 560,
+    // 只能靠拖窗口边缘等比放大：双击标题栏缩放 / 绿色按钮全屏都会让画布
+    // 面积突变而 UI 缩放按整窗比例计算，所以这里一律禁用。
+    maximizable: false,
+    fullscreenable: false,
     show: false,
     backgroundColor: nativeTheme.shouldUseDarkColors ? "#121212" : "#ffffff",
     titleBarStyle: "hiddenInset",
@@ -153,6 +157,10 @@ function createWindow() {
 
   // 窗口先出现、内容后填充，避免看到白屏加载过程
   win.once("ready-to-show", () => win.show());
+
+  // 双保险：系统级双击标题栏 / 全屏手势若绕过 maximizable，也立刻退回
+  win.on("maximize", () => win.unmaximize());
+  win.on("enter-full-screen", () => win.setFullScreen(false));
 
   win.loadFile(RENDERER);
 
@@ -351,6 +359,13 @@ function runFakePen() {
 // 用来验证"HID 数据能否变成带压感的线条"，这是整条链路唯一的真风险点。
 ipcMain.on("ts:log", (_event, message) => {
   console.log("[renderer]", message);
+});
+
+// 顶栏「缺少输入监控权限」点击后，直接把系统设置开到对应页面
+ipcMain.on("ts:open-input-monitoring", () => {
+  shell.openExternal(
+    "x-apple.systempreferences:com.apple.preference.security?Privacy_ListenEvent"
+  );
 });
 
 ipcMain.handle("pen:selftest", async () => {

@@ -7,8 +7,18 @@
 const { spawn } = require("node:child_process");
 const path = require("node:path");
 const fs = require("node:fs");
+const os = require("node:os");
 
 const REPO_ROOT = path.join(__dirname, "../..");
+
+/**
+ * 采集器事件日志：默认开，只记「非笔」事件（按键、独占、接口、状态）。
+ * 笔事件每秒上百条，全记会把磁盘写爆，所以单独排除。
+ * 板载键这类“按了没反应”的问题，靠这个日志能直接看出事件有没有到应用。
+ */
+function hidLogPath() {
+  return path.join(os.homedir(), "Library/Logs/TabletSketch/hid.log");
+}
 
 function resolveBinary() {
   const candidates = [
@@ -31,6 +41,16 @@ class HidBridge {
     this.buffer = "";
     /** 独占失败的原因：permission（缺输入监控）/ busy（被别的进程占用）。 */
     this.grabBlocked = null;
+    // 诊断日志：只在打开开关时写，避免无谓 IO
+    this.logPath = hidLogPath();
+    if (this.logPath) {
+      try {
+        fs.mkdirSync(path.dirname(this.logPath), { recursive: true });
+        fs.writeFileSync(this.logPath, `# ${new Date().toISOString()} 采集器启动\n`);
+      } catch {
+        this.logPath = null;
+      }
+    }
   }
 
   start() {
@@ -102,6 +122,12 @@ class HidBridge {
       payload = JSON.parse(line);
     } catch {
       return;
+    }
+
+    if (this.logPath && payload.t !== "pen") {
+      try {
+        fs.appendFileSync(this.logPath, `${Date.now()} ${line}\n`);
+      } catch {}
     }
 
     if (payload.t === "ready") {

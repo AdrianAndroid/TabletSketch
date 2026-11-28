@@ -36,13 +36,19 @@ echo "签名身份：${SIGN_ID}"
 # Contents/Resources/app/bin/ 不在其列，会被静默跳过。里面的 tablet-sketch-hid
 # 是真正去 seize 设备的进程，未签名时系统拒绝授予「输入监控」，
 # 表现为：笔只读可用，板载键全部失效（kIOReturnNotPermitted）。先显式签它。
+PLIST="$APP/Contents/Info.plist"
+APP_ID="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$PLIST" 2>/dev/null || echo com.zhaojian.tabletsketch)"
+
 while IFS= read -r -d '' nested; do
   case "$(file -b "$nested" 2>/dev/null)" in
     Mach-O*) ;;
     *) continue ;;
   esac
   echo "签名包内二进制：${nested#"$APP"/}"
-  codesign --force --timestamp=none --sign "$SIGN_ID" "$nested"
+  # 用主应用的 bundle identifier 当代码身份：输入监控授权是按代码身份匹配的，
+  # 若这里用二进制自己的名字，TCC 会把它当成另一个客户端而拒绝，
+  # 表现就是「设置里 TabletSketch 已勾选，板载键仍然不亮」。
+  codesign --force --timestamp=none --identifier "$APP_ID" --sign "$SIGN_ID" "$nested"
 done < <(find "$APP/Contents/Resources" -type f -perm -111 -print0 2>/dev/null)
 
 codesign --force --deep --timestamp=none --sign "$SIGN_ID" "$APP"

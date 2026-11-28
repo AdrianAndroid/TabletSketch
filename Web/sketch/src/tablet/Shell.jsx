@@ -865,17 +865,26 @@ export function TabletShell({ onOpenSettings }) {
               grabbed ? " is-grab" : ""
             }`}
           />
-          <span className="ts-topbar-hid" title={hidStatus?.message || ""}>
-            {hidStatus?.state === "ready"
-              ? "手写板已连接"
-              : hidStatus?.state === "no-device"
-                ? "未检测到手写板"
-                : hidStatus?.state === "no-permission"
-                  ? "缺输入监控权限"
+          {hidStatus?.state === "no-permission" ? (
+            <button
+              type="button"
+              className="ts-topbar-hid is-action"
+              title="点击打开系统设置的「输入监控」页面并授权 TabletSketch"
+              onClick={() => window.tsSystem?.openInputMonitoring?.()}
+            >
+              缺输入监控权限 · 去开启
+            </button>
+          ) : (
+            <span className="ts-topbar-hid" title={hidStatus?.message || ""}>
+              {hidStatus?.state === "ready"
+                ? "手写板已连接"
+                : hidStatus?.state === "no-device"
+                  ? "未检测到手写板"
                   : hidStatus?.state === "readonly"
                     ? "只读 · 板载键不可用"
                     : "连接中"}
-          </span>
+            </span>
+          )}
         </div>
         </div>
 

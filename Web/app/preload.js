@@ -22,6 +22,11 @@ contextBridge.exposeInMainWorld("tsEnv", {
   noAnim: !!process.env.TS_NO_ANIM
 });
 
+// 系统级操作：目前只有「打开输入监控设置页」（顶栏权限提示可点）
+contextBridge.exposeInMainWorld("tsSystem", {
+  openInputMonitoring: () => ipcRenderer.send("ts:open-input-monitoring")
+});
+
 function emit(type, detail) {
   document.dispatchEvent(new CustomEvent(type, { detail }));
 }
