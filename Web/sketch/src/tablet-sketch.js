@@ -495,6 +495,44 @@ function installTabletSketch(excalidrawApi) {
       return true;
     },
 
+    /**
+     * 按屏幕坐标拾取并选中图元（侧键 1 样式环用）。
+     * Excalidraw 没有公开坐标命中 API，临时切到 selection 后合成一次原生点击，
+     * 命中判定交给它自己；pointerdown 必须派发到 canvas，派发到 .excalidraw 容器无效。
+     * setActiveTool 是异步 flush，切换后要等一拍再点，否则仍按原工具处理。
+     */
+    async pickAtPoint(x, y) {
+      if (!Number.isFinite(x) || !Number.isFinite(y)) return false;
+      const target = canvasEl();
+      if (!target) return false;
+      // 笔尖压在自绘 UI 上时，不拾取它下面的图元。
+      const top = document.elementFromPoint(x, y);
+      if (!top || isChrome(top)) return false;
+
+      const previousTool = api.getAppState().activeTool;
+      const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+      let pickedIds = null;
+      try {
+        api.setActiveTool({ type: "selection" });
+        await wait(120);
+        target.dispatchEvent(makePointerEvent("pointerdown", x, y, 0.5));
+        await wait(60);
+        target.dispatchEvent(makePointerEvent("pointerup", x, y, 0));
+        await wait(120);
+        const selected = api.getAppState().selectedElementIds || {};
+        pickedIds = Object.fromEntries(Object.entries(selected).filter(([, on]) => on));
+      } finally {
+        if (previousTool) api.setActiveTool(previousTool);
+        await wait(60);
+      }
+      // 切回原工具时 Excalidraw 会清空选区，必须把命中的 ID 写回去。
+      if (pickedIds && Object.keys(pickedIds).length) {
+        api.updateScene({ appState: { selectedElementIds: pickedIds } });
+        await wait(60);
+      }
+      return !!pickedIds && Object.keys(pickedIds).length > 0;
+    },
+
     // ---- 场景 ----
     getSceneElements() {
       return api.getSceneElements();

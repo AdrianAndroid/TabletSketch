@@ -144,6 +144,8 @@ export function TabletShell({ onOpenSettings }) {
   const dragRef = useRef(null);
   // 笔最近一次落点：径向菜单和样式气泡都以它为中心，而不是屏幕中心
   const penRef = useRef({ x: window.innerWidth / 2, y: window.innerHeight / 2 });
+  // 笔是否在感应区：leave 事件会把 detail 置 null，此时不能按最后落点做拾取。
+  const penPresentRef = useRef(false);
   const mouseRef = useRef({ x: window.innerWidth / 2, y: window.innerHeight / 2 });
   // 唯一光标的 DOM 引用：位置直接写 transform，避免高频 setState 重渲染整棵树
   const cursorElRef = useRef(null);
@@ -322,9 +324,9 @@ export function TabletShell({ onOpenSettings }) {
   useEffect(() => {
     const onPos = (event) => {
       const detail = event.detail;
-      if (detail && Number.isFinite(detail.x) && Number.isFinite(detail.y)) {
-        penRef.current = { x: detail.x, y: detail.y };
-      }
+      const present = !!detail && Number.isFinite(detail.x) && Number.isFinite(detail.y);
+      if (present) penRef.current = { x: detail.x, y: detail.y };
+      penPresentRef.current = present;
       paintCursor(detail, "pen");
     };
     const onGrab = (event) => setGrabbed(!!event.detail?.ok);
@@ -498,16 +500,30 @@ export function TabletShell({ onOpenSettings }) {
   }, [activate]);
 
   const openRadial = useCallback(
-    (source = "pen") => {
+    async (source = "pen") => {
       const api = bridge();
       if (!api) return;
       // 笔画进行中：忽略，不打断当前笔
       if (api.isStrokeActive?.()) return;
-      const context = api.getContext?.();
+      const point = source === "mouse" ? mouseRef.current : penRef.current;
+      let context = api.getContext?.();
       if (!context) return;
       if (!context.selectedCount) {
-        showToast("先选中图形");
-        return;
+        // 笔已离板时按最后落点拾取没有意义，直接走原提示。鼠标入口不受此限制。
+        if (source === "pen" && !penPresentRef.current) {
+          showToast("先选中图形");
+          return;
+        }
+        const picked = await api.pickAtPoint?.(point.x, point.y);
+        if (!picked) {
+          showToast("先选中图形");
+          return;
+        }
+        context = api.getContext?.();
+        if (!context?.selectedCount) {
+          showToast("先选中图形");
+          return;
+        }
       }
       if (context.allLocked) {
         showToast("元素已锁定");
@@ -518,7 +534,6 @@ export function TabletShell({ onOpenSettings }) {
         showToast("没有可调样式");
         return;
       }
-      const point = source === "mouse" ? mouseRef.current : penRef.current;
       setOpenPanel(null);
       setBubble(null);
       setSettingsOpen(false);

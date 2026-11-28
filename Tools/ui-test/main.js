@@ -808,6 +808,71 @@ const SCENARIO = String.raw`(async () => {
   onFlags = bandOn();
   log("切到橡皮后仅橡皮格常亮", onFlags[1] === true && onFlags[0] === false, JSON.stringify(onFlags));
 
+  // 侧键 1 样式环：无选中时按笔尖坐标拾取图元
+  const pickCanvas = document.querySelector("canvas.excalidraw__canvas.interactive") || document.querySelector("canvas.excalidraw__canvas");
+  const pr = pickCanvas?.getBoundingClientRect();
+  if (pr) {
+    const px = Math.round(pr.left + pr.width * 0.5);
+    const py = Math.round(pr.top + pr.height * 0.5);
+    const sideKey1 = () => document.dispatchEvent(new CustomEvent("ts:hid", { detail: { t: "side", keys: [0] } }));
+    const closeRadial = () => $(".ts-radial-center")?.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
+    const br = window.tabletSketch;
+    br.loadScene({ elements: [] });
+    br.setTool("freedraw");
+    await sleep(180);
+    penClient("began", px - 140, py);
+    await sleep(90);
+    penClient("changed", px - 70, py);
+    await sleep(90);
+    penClient("changed", px, py);
+    await sleep(90);
+    penClient("changed", px + 70, py);
+    await sleep(90);
+    penClient("changed", px + 140, py);
+    await sleep(90);
+    penClient("ended", px + 140, py);
+    await sleep(280);
+    log("拾取测试前置有笔迹", (br.getSceneElements?.().length || 0) > 0, String(br.getSceneElements?.().length));
+    br.clearSelection();
+    await sleep(120);
+    sideKey1();
+    await sleep(750);
+    log("笔尖命中后自动选中", br.getContext?.()?.selectedCount === 1, String(br.getContext?.()?.selectedCount));
+    log("命中后样式环打开", !!$(".ts-radial"), $(".ts-radial") ? "open" : ($(".ts-toast")?.textContent || ""));
+    log("拾取后工具已恢复", br.getTool?.() === "freedraw", br.getTool?.());
+    closeRadial();
+    await sleep(200);
+
+    // 笔尖下无图元：保持原 toast，不打开样式环
+    br.clearSelection();
+    await sleep(120);
+    penClient("hover", px - 400, py + 260);
+    await sleep(120);
+    sideKey1();
+    await sleep(650);
+    log("空白处不自动选中", br.getContext?.()?.selectedCount === 0, String(br.getContext?.()?.selectedCount));
+    log("空白处保持原提示", ($(".ts-toast")?.textContent || "").includes("先选中图形"), $(".ts-toast")?.textContent || "");
+    log("空白处不打开样式环", !$(".ts-radial"), $(".ts-radial") ? "open" : "closed");
+
+    // 笔尖压在右浮岛 UI 上：不拾取它下面的图元
+    const uiCell = $(".ts-cell")?.getBoundingClientRect();
+    if (uiCell) {
+      penClient("hover", uiCell.left + uiCell.width / 2, uiCell.top + uiCell.height / 2);
+      await sleep(120);
+      sideKey1();
+      await sleep(650);
+      log("笔尖在浮岛上不误选", br.getContext?.()?.selectedCount === 0, String(br.getContext?.()?.selectedCount));
+    }
+
+    // 笔已离板：不按最后落点拾取
+    document.dispatchEvent(new CustomEvent("ts:hid", { detail: { t: "pen", ph: "leave" } }));
+    await sleep(120);
+    sideKey1();
+    await sleep(450);
+    log("离板后不自动选中", br.getContext?.()?.selectedCount === 0, String(br.getContext?.()?.selectedCount));
+    log("离板后保持原提示", ($(".ts-toast")?.textContent || "").includes("先选中图形"), $(".ts-toast")?.textContent || "");
+  }
+
   return results;
 })()`;
 
