@@ -4,7 +4,7 @@
 
 | 能力 | 说明 | 合并来源 |
 |---|---|---|
-| [`pen-input`](pen-input/spec.md) | 设备识别、三通道职责、三态判定、压力整形、板载 8 键（键盘接口抓取、应用接管）、映射范围、独占现状、统一虚拟笔、输入仲裁、鼠标边界 | bootstrap / seize / onboard-pad-visualizer / window-as-pad / map-onboard-keys / add-mouse-input / refactor-configurable-layouts |
+| [`pen-input`](pen-input/spec.md) | 设备识别、三通道职责、三态判定、压力整形、笔画采样不得被阈值吞掉、板载 8 键（键盘接口抓取、应用接管）、映射范围、独占现状、统一虚拟笔、输入仲裁、鼠标边界 | bootstrap / seize / onboard-pad-visualizer / window-as-pad / map-onboard-keys / add-mouse-input / refactor-configurable-layouts / fix-pen-stroke-sampling-latency |
 | [`canvas-mapping`](canvas-mapping/spec.md) | 画布比例、等比映射、越界丢弃、画布锁定 | bootstrap-tablet-sketch |
 | [`pen-first-ui`](pen-first-ui/spec.md) | 窗口即板面、按键带、右侧浮岛、下拉、两级样式环、鼠标入口、工具选择持久化、输入分层与冲突裁决、输入呈现性能、笔直接拖动把手、样式环不透明、左侧样式岛、工具岛禁左、读数板固定右上、悬停即弹出取值条、取值项笔高亮、图元样式类别按 Excalidraw 截图校准、笔侧键 2 工具环、锁槽改为工具锁、五处布局可定制、统一动作执行、窗口缩放 UI 等比放大、设置面板关闭按钮可点、逐图元样式显隐、板载键卡片化显示、浮岛列数按格数全自动、设置内预览不接管输入、独占失败自动重试、动作结果必须真实、无选中时按笔尖坐标拾取图元再开样式环、笔侧键确认环悬停扇区 | bootstrap-tablet-sketch / window-as-pad / add-mouse-input / turn-radial-menu-into-style-wheel / fix-island-tool-persistence / align-pen-tool-with-mouse / clarify-pen-first-input-priority / optimize-input-render-performance / fix-island-drag-with-pen / fix-radial-opacity / add-left-style-island / fix-left-style-hover-popup / fix-value-item-pen-hover / align-style-categories-with-excalidraw / add-pen-side-key2-tool-ring / fix-tool-lock-action / refactor-configurable-layouts / adapt-ui-scale-and-shape-style-toggles / unify-onboard-keybindings / auto-island-columns / add-layout-ui-previews / grab-retry-selfheal / fix-pad-undo-redo / pick-element-on-style-ring / side-key-confirm-radial |
 | [`sketch-document`](sketch-document/spec.md) | 多画布、`.excalidraw`、自动保存、导入导出、素材库 | bootstrap-tablet-sketch |
@@ -53,6 +53,7 @@
 | 2026-11-29 | `add-pad-key-current-state` | 已归档：板载键卡片复用浮岛 `buildSurfaceSlots` 的 current 判定，工具/锁实色常亮、面板展开浅色常亮，按下瞬时闪烁保留 |
 | 2026-11-29 | `pick-element-on-style-ring` | 已归档：侧键 1 无选中时按笔尖坐标拾取图元（临时 selection + canvas 合成点击，工具恢复后写回选中 ID）；离板/UI 覆盖层仍走原提示 |
 | 2026-11-29 | `side-key-confirm-radial` | 已归档：样式环/工具环打开时侧键作为确认键执行悬停扇区（confirmRef 复用扇区点击路径），悬停空走中心逻辑、离板不响应、鼠标环笔键可确认、交叉键无动作 |
+| 2026-11-29 | `fix-pen-stroke-sampling-latency` | 已归档：状态机距离阈值单位从误标的画布 pt 改为归一化坐标，30 帧小字采样不再被吞成飞线；新增 PenStateMachineTests 固化重复帧过滤与离板收尾 |
 
 ## 已知未解决
 
