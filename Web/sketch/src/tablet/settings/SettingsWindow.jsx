@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Icons } from "../icons";
 import { CATEGORY_ORDER } from "../style-wheel";
+import { LayoutPreview } from "./LayoutPreview.jsx";
 import {
   ACTION_GROUPS,
   ACTION_LIBRARY,
@@ -133,6 +134,7 @@ function SlotChip({ id, index, onRemove, onMove, draggable, onDragStart, onDragO
   const Icon = Icons[def.icon] || Icons.more;
   return (
     <div
+      data-ts-id={id}
       className={`ts-layout-chip${current ? " is-current" : ""}${dragging ? " is-dragging" : ""}${dropTarget ? " is-drop-target" : ""}`}
       draggable={draggable}
       onDragStart={onDragStart}
@@ -152,43 +154,6 @@ function SlotChip({ id, index, onRemove, onMove, draggable, onDragStart, onDragO
           <button type="button" onClick={() => onRemove(index)} title="移除">×</button>
         </span>
       ) : null}
-    </div>
-  );
-}
-
-function Preview({ surfaceId, ids, limit, state, previewing }) {
-  const rules = SURFACE_RULES[surfaceId];
-  const chunks = [];
-  if (rules.geometry === "ring") {
-    const innerCount = Math.max(1, (limit || 9) - 1);
-    chunks.push({ label: `内圈 ${Math.min(innerCount, ids.length)}`, ids: ids.slice(0, innerCount) });
-    chunks.push({ label: "更多", ids: ["more"] });
-    chunks.push({ label: "外圈", ids: ids.slice(innerCount) });
-  } else if (rules.geometry === "grid") {
-    chunks.push({ label: `浮岛 · ${ids.length} 格`, ids });
-  } else if (rules.geometry === "band") {
-    chunks.push({ label: "按键带 1–8", ids: ids.map((id, i) => id || `空 ${i + 1}`) });
-  } else {
-    chunks.push({ label: `竖排 · ${ids.length} 项`, ids });
-  }
-  return (
-    <div className="ts-layout-preview">
-      {chunks.map((chunk, ci) => (
-        <div key={ci} className="ts-layout-preview-row">
-          <span className="ts-layout-preview-label">{chunk.label}</span>
-          <div className="ts-layout-preview-items">
-            {chunk.ids.length ? (
-              chunk.ids.map((id, i) => (
-                <span key={`${id}-${i}`} className={`ts-layout-preview-item${previewing ? " is-preview" : ""}`}>
-                  {ACTION_LIBRARY[id]?.label || id}
-                </span>
-              ))
-            ) : (
-              <span className="ts-layout-preview-empty">—</span>
-            )}
-          </div>
-        </div>
-      ))}
     </div>
   );
 }
@@ -345,10 +310,27 @@ function LayoutPage({ surfaceId, layout, state, onPatch, onRestore, onRestoreVal
     onPatch({ ids: [...ids, id] });
   };
 
+  const drag = {
+    dragId: preview?.dragId ?? null,
+    dropTarget: preview?.at ?? null,
+    onDragStart: startDrag,
+    onDragOver: overChip,
+    onDragEnd: endDrag,
+    onDrop: drop
+  };
+
   return (
     <>
-      <Section title="形态预览" icon="canvas" note={`最多 ${rules.limit} 项；顺序即显示顺序。${preview ? "（预览中，松手保存）" : ""}`}>
-        <Preview surfaceId={surfaceId} ids={displayIds} limit={surface.inner || surface.limit || rules.limit} state={state} previewing={!!preview} />
+      <Section title="界面预览" icon="canvas" note={`与真机界面一致；直接拖动预览上的按钮即可重排，松手保存。最多 ${rules.limit} 项。${preview ? "（预览中，松手保存）" : ""}`}>
+        <LayoutPreview
+          surfaceId={surfaceId}
+          ids={displayIds}
+          inner={surface.inner || surface.limit || rules.limit}
+          outer={surface.outer || 8}
+          state={state}
+          drag={drag}
+          note={preview ? "松手后按此顺序保存" : undefined}
+        />
       </Section>
 
       <Section title="当前按钮" icon="layers" note="点箭头精确移动，也可按住条目拖到目标位置；拖动中实时预览排序，松手保存。">

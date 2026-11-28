@@ -1313,6 +1313,231 @@ body.tablet-mode {
   background: transparent;
 }
 
+/* ------------------------------------------------ 布局设置：真实 UI 界面预览 */
+/* 预览是配置的可视化操作面，强制浅色观感以贴合真机，不受深色模式影响。 */
+.ts-lp {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 12px;
+  border-radius: 10px;
+  background: #ffffff;
+  border: 1px solid var(--ts-line);
+  color: #3d4046;
+}
+
+.ts-lp[data-geometry="ring"] {
+  min-height: 210px;
+}
+
+.ts-lp-hint {
+  font-size: 11px;
+  color: #1971c2;
+}
+
+.ts-lp-empty {
+  font-size: 12px;
+  color: #9aa0a7;
+  padding: 16px 0;
+}
+
+.ts-lp-slot {
+  cursor: grab;
+  transition: opacity 0.1s ease, background 0.1s ease;
+}
+
+.ts-lp-slot.is-dragging {
+  opacity: 0.4;
+}
+
+.ts-lp-slot.is-drop-target {
+  outline: 2px solid var(--ts-accent, #4c8bf5);
+  outline-offset: -2px;
+}
+
+/* 竖排样式岛预览 */
+.ts-lp-column {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px 6px;
+  border-radius: 14px;
+  background: var(--ts-surface);
+  border: 1px solid var(--ts-line);
+  min-width: 132px;
+}
+
+.ts-lp-col-title {
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  color: var(--ts-text-dim);
+  text-align: center;
+  padding-bottom: 2px;
+}
+
+.ts-lp-col-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 120px;
+  height: 30px;
+  padding: 0 8px;
+  border-radius: 9px;
+  background: #ffffff;
+  border: 1px solid var(--ts-line);
+}
+
+.ts-lp-col-row.is-current {
+  background: var(--ts-accent-soft, #e8f1ff);
+  color: var(--ts-accent, #4c8bf5);
+}
+
+.ts-lp-col-row svg {
+  flex: none;
+  width: 16px;
+  height: 16px;
+}
+
+.ts-lp-col-label {
+  font-size: 11px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ts-lp-swatch {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  border-radius: 5px;
+  border: 1px solid var(--ts-line-strong);
+  box-sizing: border-box;
+}
+
+.ts-lp-swatch.is-none {
+  background: linear-gradient(135deg, transparent 44%, #e03131 45%, #e03131 55%, transparent 56%), #ffffff;
+}
+
+/* 图标网格预览 */
+.ts-lp-grid {
+  display: grid;
+  gap: 4px;
+}
+
+.ts-lp-grid[data-columns="1"] {
+  grid-template-columns: 40px;
+  grid-auto-flow: row;
+}
+
+.ts-lp-grid[data-columns="2"] {
+  grid-template-columns: repeat(2, 40px);
+  grid-template-rows: repeat(10, 40px);
+  grid-auto-flow: column;
+}
+
+.ts-lp-cell {
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #ffffff;
+  border: 1px solid var(--ts-line);
+  color: #3d4046;
+}
+
+.ts-lp-cell.is-current {
+  background: var(--ts-accent, #4c8bf5);
+  color: #ffffff;
+}
+
+.ts-lp-cell svg {
+  width: 20px;
+  height: 20px;
+}
+
+/* 扇区环预览 */
+.ts-lp-ring {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+}
+
+.ts-lp-svg {
+  width: min(100%, 300px);
+  height: auto;
+  max-height: 260px;
+  overflow: visible;
+}
+
+.ts-lp-path {
+  fill: #ffffff;
+  stroke: rgba(19, 20, 23, 0.16);
+  stroke-width: 1;
+}
+
+.ts-lp-path.is-current {
+  stroke: var(--ts-accent, #4c8bf5);
+  stroke-width: 2;
+}
+
+.ts-lp-path.is-more {
+  fill: #f2f4f7;
+}
+
+.ts-lp-sector.is-current .ts-lp-path {
+  stroke: var(--ts-accent, #4c8bf5);
+  stroke-width: 2;
+}
+
+.ts-lp-center {
+  fill: #ffffff;
+  stroke: rgba(19, 20, 23, 0.12);
+  stroke-width: 1;
+}
+
+.ts-lp-center-label {
+  font-size: 10px;
+  fill: #9aa0a7;
+  pointer-events: none;
+  user-select: none;
+}
+
+.ts-lp-face {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  color: #3d4046;
+  user-select: none;
+}
+
+.ts-lp-face svg {
+  width: 18px;
+  height: 18px;
+}
+
+.ts-lp-face span {
+  font-size: 9px;
+  line-height: 1;
+  color: var(--ts-text-dim);
+}
+
+.ts-lp-sector.is-dragging .ts-lp-path {
+  opacity: 0.4;
+}
+
+.ts-lp-sector.is-drop-target .ts-lp-path {
+  stroke: var(--ts-accent, #4c8bf5);
+  stroke-width: 3;
+}
+
 
 .ts-layout-list {
   display: flex;

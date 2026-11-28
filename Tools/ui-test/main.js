@@ -225,7 +225,9 @@ const SCENARIO = String.raw`(async () => {
     const rightNav = $$(".ts-nav-item").find((n) => n.textContent.includes("右浮动岛"));
     click(rightNav);
     await sleep(180);
-    log("右岛页有形态预览", !!$(".ts-layout-preview"), "");
+    log("右岛页有界面预览", !!$(".ts-lp[data-geometry='grid']"), "");
+    log("右岛预览为图标网格", $$(".ts-lp-grid .ts-lp-cell").length > 0, String($$(".ts-lp-grid .ts-lp-cell").length));
+    log("右岛预览尾部有更多", !!$(".ts-lp-grid .ts-lp-cell[data-ts-id='more']"), "");
     log("右岛页有顺序列表", $$(".ts-layout-chip").length > 0, String($$(".ts-layout-chip").length));
     log("右岛页有候选池", $$(".ts-layout-pool-item").length > 0, String($$(".ts-layout-pool-item").length));
     log("右岛候选池排除样式类别", !$$(".ts-layout-pool-label").some((n) => n.textContent.includes("样式类别")), "");
@@ -234,6 +236,9 @@ const SCENARIO = String.raw`(async () => {
     const key1Nav = $$(".ts-nav-item").find((n) => n.textContent.includes("手写笔键 1"));
     click(key1Nav);
     await sleep(180);
+    log("键1页有界面预览", !!$(".ts-lp[data-geometry='ring']"), "");
+    log("键1预览为 SVG 扇区环", $$(".ts-lp-ring .ts-lp-sector").length > 0, String($$(".ts-lp-ring .ts-lp-sector").length));
+    log("键1预览含更多扇区", !!$(".ts-lp-ring .ts-lp-sector[data-ts-id='more']"), "");
     log("键1页有样式取值编辑", !!$(".ts-values-block"), "");
     const valuesHead = $(".ts-values-head");
     if (valuesHead) {
@@ -612,11 +617,11 @@ const SCENARIO = String.raw`(async () => {
   if (dragNav) {
     click(dragNav);
     await sleep(180);
-    const labels = () => $$(".ts-layout-chip").map((c) => c.querySelector("span")?.textContent || "");
-    const previewItems = () => {
-      const row = $$(".ts-layout-preview-row").find((r) => r.querySelector(".ts-layout-preview-label")?.textContent.includes("浮岛"));
-      return row ? Array.from(row.querySelectorAll(".ts-layout-preview-item")).map((x) => x.textContent.trim()) : [];
-    };
+    const labels = () => $$(".ts-layout-chip").map((c) => c.getAttribute("data-ts-id") || c.querySelector("span")?.textContent || "");
+    const previewItems = () =>
+      $$(".ts-lp-grid .ts-lp-cell")
+        .map((x) => x.getAttribute("data-ts-id"))
+        .filter((id) => id && id !== "more");
     const stored = () => JSON.parse(localStorage.getItem("tablet.layout.v2") || "{}")?.surfaces?.rightIsland?.ids || [];
     const fireDrag = (el, type) => {
       const dt = typeof DataTransfer === "function" ? new DataTransfer() : null;
@@ -661,6 +666,25 @@ const SCENARIO = String.raw`(async () => {
       await sleep(140);
       log("取消拖动后列表回退", labels().join("|") === beforeCancel.join("|"), beforeCancel.join(",") + " -> " + labels().join(","));
       log("取消拖动不写入配置", stored().join(",") === storedCancel, stored().join(","));
+    }
+
+    // 在预览网格上直接拖动：预览自身既是拖动源，也是落坑目标。
+    const beforePreviewDrag = previewItems();
+    const storedPreviewDrag = stored().join(",");
+    const cells = $$(".ts-lp-grid .ts-lp-cell[data-ts-id]").filter((c) => c.getAttribute("data-ts-id") !== "more");
+    if (cells.length >= 3) {
+      fireDrag(cells[0], "dragstart");
+      await sleep(80);
+      fireDrag(cells[2], "dragover");
+      await sleep(140);
+      log("预览上拖动实时重排", previewItems().join("|") !== beforePreviewDrag.join("|"), beforePreviewDrag.join(",") + " -> " + previewItems().join(","));
+      log("预览拖动中列表同步", labels().join("|") === previewItems().join("|"), labels().join(","));
+      log("预览拖动中源项有拖动态", $$(".ts-lp-cell.is-dragging").length === 1, String($$(".ts-lp-cell.is-dragging").length));
+      log("预览拖动中未写配置", stored().join(",") === storedPreviewDrag, stored().join(","));
+      fireDrag($(".ts-lp-grid"), "drop");
+      await sleep(160);
+      log("预览落坑后配置已写入", stored().join(",") !== storedPreviewDrag, storedPreviewDrag + " -> " + stored().join(","));
+      log("预览落坑后列表与预览一致", labels().join("|") === previewItems().join("|"), labels().join(","));
     }
   }
   click($(".ts-settings-head .ts-panel-close"));
