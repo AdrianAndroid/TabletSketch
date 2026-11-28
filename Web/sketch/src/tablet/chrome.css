@@ -1283,6 +1283,12 @@ body.tablet-mode {
   font-size: 12px;
 }
 
+.ts-layout-preview-item.is-preview {
+  border: 1px dashed var(--ts-accent, #4c8bf5);
+  background: transparent;
+}
+
+
 .ts-layout-list {
   display: flex;
   flex-wrap: wrap;
@@ -1306,6 +1312,17 @@ body.tablet-mode {
 .ts-layout-chip.is-current {
   border-color: var(--ts-accent, #4c8bf5);
 }
+
+.ts-layout-chip.is-dragging {
+  opacity: 0.6;
+  border-style: dashed;
+  cursor: grabbing;
+}
+
+.ts-layout-chip.is-drop-target {
+  box-shadow: inset 3px 0 0 var(--ts-accent, #4c8bf5);
+}
+
 
 .ts-layout-chip svg {
   width: 15px;

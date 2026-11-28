@@ -611,6 +611,68 @@ const SCENARIO = String.raw`(async () => {
   await sleep(120);
   log("图形样式测试后设置窗已关闭", !$(".ts-settings"), $(".ts-settings") ? "still open" : "closed");
 
+  // ---------- 拖拽排序：实时预览 + 落坑保存 + 取消回退（独立打开） ----------
+  window.dispatchEvent(new Event("tablet:open-settings"));
+  await sleep(220);
+  const dragNav = $$(".ts-nav-item").find((n) => n.textContent.includes("右浮动岛"));
+  if (dragNav) {
+    click(dragNav);
+    await sleep(180);
+    const labels = () => $$(".ts-layout-chip").map((c) => c.querySelector("span")?.textContent || "");
+    const previewItems = () => {
+      const row = $$(".ts-layout-preview-row").find((r) => r.querySelector(".ts-layout-preview-label")?.textContent.includes("浮岛"));
+      return row ? Array.from(row.querySelectorAll(".ts-layout-preview-item")).map((x) => x.textContent.trim()) : [];
+    };
+    const stored = () => JSON.parse(localStorage.getItem("tablet.layout.v2") || "{}")?.surfaces?.rightIsland?.ids || [];
+    const fireDrag = (el, type) => {
+      const dt = typeof DataTransfer === "function" ? new DataTransfer() : null;
+      el.dispatchEvent(new DragEvent(type, { bubbles: true, cancelable: true, dataTransfer: dt }));
+    };
+
+    const before = labels();
+    const storedBefore = stored().join(",");
+    if (before.length >= 3) {
+      // 拖动中：列表与形态预览都实时重排，但配置尚未写入。
+      const chips = $$(".ts-layout-chip");
+      fireDrag(chips[0], "dragstart");
+      await sleep(80);
+      fireDrag(chips[2], "dragover");
+      await sleep(140);
+      const during = labels();
+      log("拖动中列表实时重排", during.join("|") !== before.join("|"), before.join(",") + " -> " + during.join(","));
+      log("拖动中形态预览同步更新", previewItems().join("|") === during.join("|"), previewItems().join(","));
+      log("拖动中源项有拖动态", $$(".ts-layout-chip.is-dragging").length === 1, String($$(".ts-layout-chip.is-dragging").length));
+      log("拖动中落坑位有标记", $$(".ts-layout-chip.is-drop-target").length === 1, String($$(".ts-layout-chip.is-drop-target").length));
+      log("拖动中尚未写入配置", stored().join(",") === storedBefore, stored().join(","));
+
+      // 落坑：drop 后才写入配置，且写入结果与预览一致。
+      fireDrag($(".ts-layout-list"), "drop");
+      await sleep(160);
+      const storedAfter = stored().join(",");
+      log("落坑后配置已写入", storedAfter !== storedBefore, storedBefore + " -> " + storedAfter);
+      log("落坑后列表与预览一致", labels().join("|") === previewItems().join("|"), labels().join(","));
+      log("落坑后拖动态已清除", $$(".ts-layout-chip.is-dragging").length === 0, String($$(".ts-layout-chip.is-dragging").length));
+
+      // 再拖一次但取消：列表回退，配置不变。
+      const beforeCancel = labels();
+      const storedCancel = stored().join(",");
+      const chips2 = $$(".ts-layout-chip");
+      fireDrag(chips2[0], "dragstart");
+      await sleep(80);
+      fireDrag(chips2[2], "dragover");
+      await sleep(140);
+      const duringCancel = labels();
+      log("取消前拖动确实改变了顺序", duringCancel.join("|") !== beforeCancel.join("|"), duringCancel.join(","));
+      fireDrag(chips2[2], "dragend");
+      await sleep(140);
+      log("取消拖动后列表回退", labels().join("|") === beforeCancel.join("|"), beforeCancel.join(",") + " -> " + labels().join(","));
+      log("取消拖动不写入配置", stored().join(",") === storedCancel, stored().join(","));
+    }
+  }
+  click($(".ts-settings-head .ts-panel-close"));
+  await sleep(120);
+  log("拖拽测试后设置窗已关闭", !$(".ts-settings"), $(".ts-settings") ? "still open" : "closed");
+
   return results;
 })()`;
 
@@ -669,7 +731,12 @@ app.whenReady().then(async () => {
   try {
     await win.loadFile(INDEX);
     await waitFor(win, "!!document.body");
-    await win.webContents.executeJavaScript('localStorage.removeItem("tablet.island.pos")', true);
+    // 清理上次运行写入的本地配置，保证每次从默认布局开始，避免测试间相互污染。
+    await win.webContents.executeJavaScript(`(() => {
+      for (const key of Object.keys(localStorage)) {
+        if (key.startsWith("tablet.")) localStorage.removeItem(key);
+      }
+    })()`, true);
     await win.reload();
     await waitFor(win, "!!(window.tabletSketch && window.tabletSketch.ready)");
     await new Promise((r) => setTimeout(r, 600));

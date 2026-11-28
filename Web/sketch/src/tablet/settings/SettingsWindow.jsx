@@ -129,20 +129,20 @@ function Segments({ options, value, onChange }) {
   );
 }
 
-function SlotChip({ id, index, onRemove, onMove, draggable, onDragStart, onDrop, current }) {
+function SlotChip({ id, index, onRemove, onMove, draggable, onDragStart, onDragOver, onDragEnd, current, dragging, dropTarget }) {
   const def = ACTION_LIBRARY[id];
   if (!def) return null;
   const Icon = Icons[def.icon] || Icons.more;
   return (
     <div
-      className={`ts-layout-chip${current ? " is-current" : ""}`}
+      className={`ts-layout-chip${current ? " is-current" : ""}${dragging ? " is-dragging" : ""}${dropTarget ? " is-drop-target" : ""}`}
       draggable={draggable}
       onDragStart={onDragStart}
-      onDragOver={(event) => event.preventDefault()}
-      onDrop={(event) => {
+      onDragOver={(event) => {
         event.preventDefault();
-        onDrop?.(index);
+        onDragOver?.(event);
       }}
+      onDragEnd={onDragEnd}
       title={current ? `${def.label} · 当前` : def.label}
     >
       <Icon />
@@ -158,7 +158,7 @@ function SlotChip({ id, index, onRemove, onMove, draggable, onDragStart, onDrop,
   );
 }
 
-function Preview({ surfaceId, ids, limit, state }) {
+function Preview({ surfaceId, ids, limit, state, previewing }) {
   const rules = SURFACE_RULES[surfaceId];
   const chunks = [];
   if (rules.geometry === "ring") {
@@ -181,7 +181,7 @@ function Preview({ surfaceId, ids, limit, state }) {
           <div className="ts-layout-preview-items">
             {chunk.ids.length ? (
               chunk.ids.map((id, i) => (
-                <span key={`${id}-${i}`} className="ts-layout-preview-item">
+                <span key={`${id}-${i}`} className={`ts-layout-preview-item${previewing ? " is-preview" : ""}`}>
                   {ACTION_LIBRARY[id]?.label || id}
                 </span>
               ))
@@ -294,54 +294,90 @@ function LayoutPage({ surfaceId, layout, state, onPatch, onRestore, onRestoreVal
     }
     return set;
   }, [rules]);
-  const dragIndex = useRef(null);
+  // 拖拽期间用本地 preview 展示「松手后会得到的顺序」，持久化 ids 始终不变；
+  // 只有落坑（drop）才写入配置，取消拖动则回落到原始顺序。
+  const dragRef = useRef(null); // { from, ids, dragId }
+  const [preview, setPreview] = useState(null); // { ids, dragId, at }
+  const displayIds = preview ? preview.ids : ids;
 
-  const remove = (index) => onPatch({ ids: ids.filter((_, i) => i !== index) });
+  const publish = (state) => {
+    dragRef.current = state;
+    setPreview(state ? { ids: state.ids.slice(), dragId: state.dragId, at: state.from } : null);
+  };
+
+  const remove = (index) => {
+    publish(null);
+    onPatch({ ids: ids.filter((_, i) => i !== index) });
+  };
 
   const move = (index, delta) => {
     const target = index + delta;
     if (target < 0 || target >= ids.length) return;
+    publish(null);
     const next = ids.slice();
     const [item] = next.splice(index, 1);
     next.splice(target, 0, item);
     onPatch({ ids: next });
   };
 
-  const drop = (target) => {
-    const from = dragIndex.current;
-    dragIndex.current = null;
-    if (from === null || from === target) return;
-    const next = ids.slice();
-    const [item] = next.splice(from, 1);
-    next.splice(target, 0, item);
+  const startDrag = (index) => publish({ from: index, ids: ids.slice(), dragId: ids[index] });
+
+  const overChip = (index) => {
+    const state = dragRef.current;
+    if (!state || state.from === null || state.from === index) return;
+    const next = state.ids.slice();
+    const [item] = next.splice(state.from, 1);
+    next.splice(index, 0, item);
+    if (next.every((value, i) => value === state.ids[i])) return;
+    publish({ from: index, ids: next, dragId: state.dragId });
+  };
+
+  const endDrag = () => publish(null);
+
+  const drop = () => {
+    const next = dragRef.current?.ids;
+    publish(null);
+    if (!next || (next.length === ids.length && next.every((value, i) => value === ids[i]))) return;
     onPatch({ ids: next });
   };
 
   const add = (id) => {
     if (!allowed.has(id) || ids.includes(id) || ids.length >= rules.limit) return;
+    publish(null);
     onPatch({ ids: [...ids, id] });
   };
 
   return (
     <>
-      <Section title="形态预览" icon="canvas" note={`最多 ${rules.limit} 项；顺序即显示顺序。`}>
-        <Preview surfaceId={surfaceId} ids={ids} limit={surface.inner || surface.limit || rules.limit} state={state} />
+      <Section title="形态预览" icon="canvas" note={`最多 ${rules.limit} 项；顺序即显示顺序。${preview ? "（预览中，松手保存）" : ""}`}>
+        <Preview surfaceId={surfaceId} ids={displayIds} limit={surface.inner || surface.limit || rules.limit} state={state} previewing={!!preview} />
       </Section>
 
-      <Section title="当前按钮" icon="layers" note="点箭头精确移动，也可按住条目拖到目标位置。">
-        <div className="ts-layout-list">
-          {ids.length ? (
-            ids.map((id, index) => (
+      <Section title="当前按钮" icon="layers" note="点箭头精确移动，也可按住条目拖到目标位置；拖动中实时预览排序，松手保存。">
+        <div
+          className="ts-layout-list"
+          onDragEnd={endDrag}
+          onDragOver={(event) => event.preventDefault()}
+          onDrop={(event) => {
+            event.preventDefault();
+            drop();
+          }}
+        >
+          {displayIds.length ? (
+            displayIds.map((id, index) => (
               <SlotChip
-                key={`${id}-${index}`}
+                key={id}
                 id={id}
                 index={index}
                 current={currentFor(id, state)}
                 onRemove={remove}
                 onMove={move}
                 draggable
-                onDragStart={() => { dragIndex.current = index; }}
-                onDrop={drop}
+                dragging={preview?.dragId === id}
+                dropTarget={preview?.at === index}
+                onDragStart={() => startDrag(index)}
+                onDragOver={() => overChip(index)}
+                onDragEnd={endDrag}
               />
             ))
           ) : (
