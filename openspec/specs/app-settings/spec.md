@@ -190,3 +190,21 @@ TabletSketch SHALL 提供设置能力，让用户无需手改配置文件即可�
 
 - **WHEN** 用户点「恢复本页默认」
 - **THEN** 当前页面 MUST 回落出厂值，其他页面 MUST NOT 受影响
+
+## 本次变更新增需求（adapt-ui-scale-and-shape-style-toggles）
+
+### Requirement: 逐图元样式类别可勾选显隐
+
+设置面板 SHALL 提供「图形样式」页，按 Excalidraw 图元类型列出可显示的样式类别，用户以勾选方式控制显隐；配置存于 `layout.v2` 的 `shapeStyles`，并对左岛与笔键 1 样式环同时生效。
+
+#### Scenario: 勾选显隐
+
+- **WHEN** 用户在某图元下勾选或取消一个样式类别
+- **THEN** 配置 MUST 即时保存并广播
+- **AND** 左岛与笔键 1 样式环 MUST 在下一次构建时反映该显隐
+
+#### Scenario: 配置缺失或损坏
+
+- **WHEN** `shapeStyles` 缺失、含未知图元或未知样式类别
+- **THEN** 校验 MUST 回落对应的内置默认映射
+- **AND** 设置面板与样式环 MUST 正常工作

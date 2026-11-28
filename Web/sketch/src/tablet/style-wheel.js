@@ -154,7 +154,8 @@ const TEXT = ["stroke", "fontFamily", "fontSize", "textAlign", "opacity"];
 const FRAME = ["opacity"];
 const EMBED = SHAPE;
 
-const TYPE_CATEGORIES = {
+/** 图元 → 样式类别的默认映射，layout-config 用它生成 shapeStyles 出厂值。 */
+export const TYPE_CATEGORIES = {
   rectangle: SHAPE,
   diamond: SHAPE,
   ellipse: ELLIPSE,
@@ -165,6 +166,9 @@ const TYPE_CATEGORIES = {
   frame: FRAME,
   embed: EMBED
 };
+
+/** 合法样式类别全集，用于校验 shapeStyles 中的勾选值。 */
+export const CATEGORY_ORDER = ORDER;
 
 const MORE_SLOT = {
   key: "more",
@@ -238,14 +242,24 @@ export function formatCurrent(key, context, layout) {
   return String(raw);
 }
 
+/**
+ * 左侧图的样式类别：优先取 layout.shapeStyles 的逐图元勾选，缺省回落内置映射。
+ * 两处（左岛 / 键 1）共用 shapeStyles，各自 surface.ids 决定显示顺序与是否包含。
+ */
+function configuredCategories(type, layout) {
+  const configured = layout?.shapeStyles?.[type];
+  if (Array.isArray(configured)) return configured.filter((key) => CATEGORIES[key]);
+  return TYPE_CATEGORIES[type] || [];
+}
+
 export function categoriesFor(types = [], context = null, layout = null, surfaceId = "penKey1") {
-  const filtered = types.filter((type) => type !== "image" && TYPE_CATEGORIES[type]);
+  const filtered = types.filter((type) => type !== "image" && (layout?.shapeStyles?.[type] || TYPE_CATEGORIES[type]));
   if (!filtered.length) return [];
-  const lists = filtered.map((type) => TYPE_CATEGORIES[type]);
+  const lists = filtered.map((type) => configuredCategories(type, layout));
   const compatible = ORDER.filter((key) => lists.every((list) => list.includes(key)));
   const configIds = layout?.surfaces?.[surfaceId]?.ids;
   if (!Array.isArray(configIds) || !configIds.length) return compatible;
-  // 配置决定显示哪些类别与顺序；仍受图元类型兼容性约束。
+  // 配置决定显示哪些类别与顺序；仍受逐图元显隐约束。
   return configIds.filter((key) => compatible.includes(key) && CATEGORIES[key]);
 }
 

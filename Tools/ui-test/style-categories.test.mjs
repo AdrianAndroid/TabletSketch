@@ -58,4 +58,23 @@ check("箭头+矩形取交集", categoriesFor(["arrow", "rectangle"]), [
 check("图片被过滤", categoriesFor(["image"]), []);
 check("未知类型被过滤", categoriesFor(["unknown"]), []);
 
+// 逐图元勾选显隐：shapeStyles 生效，且两处共用同一份配置。
+const configuredLayout = {
+  shapeStyles: {
+    ...Object.fromEntries(Object.entries(expected).map(([type, list]) => [type, list.slice()])),
+    rectangle: ["stroke", "opacity"],
+    ellipse: []
+  },
+  surfaces: {
+    penKey1: { ids: ["stroke", "background", "opacity", "roundness"] },
+    leftIsland: { ids: ["stroke", "background", "opacity", "roundness"] }
+  }
+};
+const context = { selectedTypes: ["rectangle"], selectedCount: 1, style: {} };
+check("键1按勾选显隐", categoriesFor(["rectangle"], context, configuredLayout, "penKey1"), ["stroke", "opacity"]);
+check("左岛与键1共用勾选", categoriesFor(["rectangle"], context, configuredLayout, "leftIsland"), ["stroke", "opacity"]);
+check("该图元可全部隐藏", categoriesFor(["ellipse"], context, configuredLayout, "leftIsland"), []);
+const buttons = buildCategoryButtons(context, configuredLayout);
+check("左岛按钮同样按勾选", buttons.map((button) => button.key), ["stroke", "opacity"]);
+
 console.log(`样式类别映射回归：${passed}/${passed} 通过`);

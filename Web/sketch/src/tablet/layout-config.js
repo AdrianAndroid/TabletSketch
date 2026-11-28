@@ -1,6 +1,8 @@
 // 五处布局的统一配置模型：动作库、默认值、校验回落、迁移与配置档。
 // 纯数据与存储逻辑，不依赖 React；Node 回归可直接 import。
 
+import { TYPE_CATEGORIES, CATEGORY_ORDER } from "./style-wheel.js";
+
 export const LAYOUT_KEY = "tablet.layout.v2";
 export const PROFILES_KEY = "tablet.profiles.v1";
 export const LEGACY_SETTINGS_KEY = "tablet.settings.v1";
@@ -103,6 +105,11 @@ function arrowheadValues(field) {
   }));
 }
 
+/** 逐图元样式显隐的出厂值：直接取 style-wheel 的既有映射，真机体验不变。 */
+export const DEFAULT_SHAPE_STYLES = Object.fromEntries(
+  Object.entries(TYPE_CATEGORIES).map(([type, categories]) => [type, categories.slice()])
+);
+
 export const DEFAULT_VALUES = {
   stroke: PALETTE.map((c) => ({ key: c.key, label: c.label, color: c.key, patch: { strokeColor: c.key } })),
   background: PALETTE.map((c) => ({ key: c.key, label: c.label, color: c.key, patch: { backgroundColor: c.key } })).concat([
@@ -189,6 +196,7 @@ export function defaultLayout() {
       }
     },
     values: JSON.parse(JSON.stringify(DEFAULT_VALUES)),
+    shapeStyles: JSON.parse(JSON.stringify(DEFAULT_SHAPE_STYLES)),
     activeProfile: "default"
   };
 }
@@ -268,6 +276,22 @@ export function normalizeLayout(raw) {
         if (values.length >= 24) break;
       }
       if (values.length) base.values[category] = values;
+    }
+  }
+
+  if (raw.shapeStyles && typeof raw.shapeStyles === "object" && !Array.isArray(raw.shapeStyles)) {
+    for (const type of Object.keys(base.shapeStyles)) {
+      const incoming = raw.shapeStyles[type];
+      // 允许空数组（该图元不显示任何样式类别），非法值才回落默认。
+      if (!Array.isArray(incoming)) continue;
+      const seen = new Set();
+      const categories = [];
+      for (const key of incoming) {
+        if (typeof key !== "string" || !CATEGORY_ORDER.includes(key) || seen.has(key)) continue;
+        seen.add(key);
+        categories.push(key);
+      }
+      base.shapeStyles[type] = categories;
     }
   }
 

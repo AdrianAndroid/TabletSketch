@@ -23,18 +23,41 @@ const ISLAND_MARGIN = 12;
 const ISLAND_TOP_MIN = 72;
 // 左侧留给常驻样式岛：右侧工具岛水平下限收紧到右半区，禁止吸附到左侧。
 const ISLAND_MIN_X_RATIO = 0.55;
+// UI 等比缩放：以启动时的窗口尺寸为 100%，短边取比例，限制在 0.8–2.0。
+const UI_SCALE_MIN = 0.8;
+const UI_SCALE_MAX = 2.0;
+
+/** 由窗口尺寸相对启动基准算出 UI 缩放；纯函数便于离屏回归直接断言。 */
+export function computeUiScale(width, height, baseWidth, baseHeight) {
+  const w = Number.isFinite(baseWidth) && baseWidth > 0 ? baseWidth : width;
+  const h = Number.isFinite(baseHeight) && baseHeight > 0 ? baseHeight : height;
+  if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) return 1;
+  const raw = Math.min(width / w, height / h);
+  return Math.min(UI_SCALE_MAX, Math.max(UI_SCALE_MIN, raw));
+}
+
+// 浮岛边距与顶部禁入区跟随 UI 缩放，避免窗口放大后浮岛压到按键带。
+// 模块级变量由 Shell 的缩放 effect 写入，纯函数 clampIsland 仍可单独回归。
+let islandScale = 1;
+function setUiScaleContext(scale) {
+  islandScale = Number.isFinite(scale) && scale > 0 ? scale : 1;
+}
+const islandMargin = () => ISLAND_MARGIN * islandScale;
+const islandTopMin = () => ISLAND_TOP_MIN * islandScale;
 
 function islandMinX() {
   return window.innerWidth * ISLAND_MIN_X_RATIO;
 }
 
 function clampIsland(pos, w, h) {
-  const minX = Math.min(islandMinX(), Math.max(ISLAND_MARGIN, window.innerWidth - w - ISLAND_MARGIN));
-  const maxX = Math.max(minX, window.innerWidth - w - ISLAND_MARGIN);
-  const maxY = Math.max(ISLAND_TOP_MIN, window.innerHeight - h - ISLAND_MARGIN);
+  const margin = islandMargin();
+  const topMin = islandTopMin();
+  const minX = Math.min(islandMinX(), Math.max(margin, window.innerWidth - w - margin));
+  const maxX = Math.max(minX, window.innerWidth - w - margin);
+  const maxY = Math.max(topMin, window.innerHeight - h - margin);
   return {
     x: Math.min(Math.max(pos.x, minX), maxX),
-    y: Math.min(Math.max(pos.y, ISLAND_TOP_MIN), maxY)
+    y: Math.min(Math.max(pos.y, topMin), maxY)
   };
 }
 
@@ -72,12 +95,14 @@ const SNAP_EDGE = 24;
  * 浮岛是竖栏，水平拖动时不该突然贴到顶部；左侧为样式岛保留，不再吸附。
  */
 function snapIsland(pos, w, h) {
-  const right = window.innerWidth - (pos.x + w) - ISLAND_MARGIN;
-  const bottom = window.innerHeight - (pos.y + h) - ISLAND_MARGIN;
+  const margin = islandMargin();
+  const topMin = islandTopMin();
+  const right = window.innerWidth - (pos.x + w) - margin;
+  const bottom = window.innerHeight - (pos.y + h) - margin;
   const candidates = [
-    { d: right, x: window.innerWidth - w - ISLAND_MARGIN, y: pos.y },
-    { d: pos.y - ISLAND_TOP_MIN, x: pos.x, y: ISLAND_TOP_MIN },
-    { d: bottom, x: pos.x, y: window.innerHeight - h - ISLAND_MARGIN }
+    { d: right, x: window.innerWidth - w - margin, y: pos.y },
+    { d: pos.y - topMin, x: pos.x, y: topMin },
+    { d: bottom, x: pos.x, y: window.innerHeight - h - margin }
   ];
   const near = candidates.filter((item) => item.d <= SNAP_EDGE);
   const best = near.length ? near.reduce((a, b) => (b.d < a.d ? b : a)) : candidates[0];
@@ -112,6 +137,9 @@ export function TabletShell({ onOpenSettings }) {
   const [islandDragging, setIslandDragging] = useState(false);
   const [layout, setLayout] = useState(loadLayout);
   const layoutRef = useRef(layout);
+  // UI 缩放基准：挂载时记录一次，之后窗口变化不再重设基准。
+  const baseWindowRef = useRef(null);
+  const [uiScale, setUiScale] = useState(1);
   const islandRef = useRef(null);
   const dragRef = useRef(null);
   // 笔最近一次落点：径向菜单和样式气泡都以它为中心，而不是屏幕中心
@@ -294,7 +322,7 @@ export function TabletShell({ onOpenSettings }) {
     const rect = el.getBoundingClientRect();
     setIslandPos(
       clampIsland(
-        { x: window.innerWidth - rect.width - ISLAND_MARGIN, y: (window.innerHeight - rect.height) / 2 },
+        { x: window.innerWidth - rect.width - islandMargin(), y: (window.innerHeight - rect.height) / 2 },
         rect.width,
         rect.height
       )
@@ -314,6 +342,25 @@ export function TabletShell({ onOpenSettings }) {
       return next.x === pos.x && next.y === pos.y ? pos : next;
     });
   }, [islandDragging]);
+
+  // UI 等比缩放：基准取挂载时的窗口尺寸，resize 时按短边比例重算并写入 CSS 变量。
+  // 只改 CSS 尺寸，不动笔尖坐标映射；样式环通过 prop 同步同一比例。
+  useEffect(() => {
+    if (!baseWindowRef.current) {
+      baseWindowRef.current = { width: window.innerWidth, height: window.innerHeight };
+    }
+    const apply = () => {
+      const base = baseWindowRef.current;
+      const scale = computeUiScale(window.innerWidth, window.innerHeight, base.width, base.height);
+      document.documentElement.style.setProperty("--ts-ui-scale", String(scale));
+      setUiScale(scale);
+      setUiScaleContext(scale);
+      window.__tsUiScale = scale;
+    };
+    apply();
+    window.addEventListener("resize", apply);
+    return () => window.removeEventListener("resize", apply);
+  }, []);
 
   // 窗口尺寸变化时把浮岛拉回可视区
   useEffect(() => {
@@ -727,7 +774,7 @@ export function TabletShell({ onOpenSettings }) {
     const w = el?.offsetWidth || 84;
     const h = el?.offsetHeight || 420;
     setIslandPos(
-      clampIsland({ x: window.innerWidth - w - ISLAND_MARGIN, y: (window.innerHeight - h) / 2 }, w, h)
+      clampIsland({ x: window.innerWidth - w - islandMargin(), y: (window.innerHeight - h) / 2 }, w, h)
     );
     setSide("right");
   }, []);
@@ -909,6 +956,7 @@ export function TabletShell({ onOpenSettings }) {
         <RadialMenu
           x={radial.x}
           y={radial.y}
+          scale={uiScale}
           slots={radial.slots}
           outerSlots={radial.outerOpen ? radial.outerSlots : []}
           centerLabel={radial.outerOpen ? "返回" : radial.centerLabel}

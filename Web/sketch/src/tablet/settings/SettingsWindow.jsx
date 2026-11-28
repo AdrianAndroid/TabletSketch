@@ -1,9 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Icons } from "../icons";
+import { CATEGORY_ORDER } from "../style-wheel";
 import {
   ACTION_GROUPS,
   ACTION_LIBRARY,
   SURFACE_RULES,
+  DEFAULT_SHAPE_STYLES,
   defaultLayout,
   loadLayout,
   saveLayout,
@@ -30,7 +32,8 @@ const GROUPS = [
     title: "绘图",
     items: [
       { id: "pen", label: "笔", icon: "pen" },
-      { id: "canvas", label: "画布", icon: "canvas" }
+      { id: "canvas", label: "画布", icon: "canvas" },
+      { id: "shape-styles", label: "图形样式", icon: "style" }
     ]
   },
   { id: "input", title: "输入", items: [{ id: "keys", label: "键位", icon: "grip" }] },
@@ -415,6 +418,50 @@ function LayoutPage({ surfaceId, layout, state, onPatch, onRestore, onRestoreVal
   );
 }
 
+function ShapeStylesPage({ layout, onChange, onRestore }) {
+  const shapeStyles = layout.shapeStyles || DEFAULT_SHAPE_STYLES;
+  const types = Object.keys(DEFAULT_SHAPE_STYLES);
+  return (
+    <>
+      <Section title="图形样式" icon="style" note="勾选每种图元显示的样式类别；左浮动岛与手写笔键 1 样式环共用这份设置。">
+        {types.map((type) => {
+          const enabled = shapeStyles[type] || [];
+          return (
+            <div key={type} className="ts-shape-block">
+              <div className="ts-shape-head">
+                <span>{ACTION_LIBRARY[type]?.label || type}</span>
+                <span className="ts-field-value">{enabled.length} 项</span>
+              </div>
+              <div className="ts-shape-options">
+                {CATEGORY_ORDER.map((category) => {
+                  const def = ACTION_LIBRARY[category];
+                  const checked = enabled.includes(category);
+                  return (
+                    <label key={category} className={`ts-shape-option${checked ? " is-on" : ""}`}>
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        onChange={(event) => {
+                          const next = event.target.checked
+                            ? CATEGORY_ORDER.filter((key) => key === category || enabled.includes(key))
+                            : enabled.filter((key) => key !== category);
+                          onChange({ ...shapeStyles, [type]: next });
+                        }}
+                      />
+                      <span>{def?.label || category}</span>
+                    </label>
+                  );
+                })}
+              </div>
+            </div>
+          );
+        })}
+      </Section>
+      <button type="button" className="ts-btn is-wide" onClick={onRestore}>恢复图形样式默认</button>
+    </>
+  );
+}
+
 function ProfilesPage({ layout, profiles, onApply, onRefresh }) {
   const [name, setName] = useState("");
 
@@ -552,6 +599,22 @@ export function SettingsWindow({ onClose, onClearCanvas }) {
     });
   };
 
+  const patchShapeStyles = (shapeStyles) => {
+    setLayout((current) => {
+      const next = { ...current, shapeStyles };
+      saveLayout(next);
+      return next;
+    });
+  };
+
+  const restoreShapeStyles = () => {
+    setLayout((current) => {
+      const next = { ...current, shapeStyles: defaultLayout().shapeStyles };
+      saveLayout(next);
+      return next;
+    });
+  };
+
   const applyProfileToLayout = (id) => {
     const next = applyProfile(id);
     if (next) setLayout(next);
@@ -618,6 +681,10 @@ export function SettingsWindow({ onClose, onClearCanvas }) {
           ))}
         </Section>
       );
+    }
+
+    if (page === "shape-styles") {
+      return <ShapeStylesPage layout={layout} onChange={patchShapeStyles} onRestore={restoreShapeStyles} />;
     }
 
     if (SURFACE_PAGE[page]) {

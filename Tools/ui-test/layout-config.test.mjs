@@ -13,6 +13,7 @@ globalThis.__layoutEvents = [];
 import {
   ACTION_LIBRARY,
   SURFACE_IDS,
+  DEFAULT_SHAPE_STYLES,
   defaultLayout,
   normalizeLayout,
   loadLayout,
@@ -104,5 +105,22 @@ for (const id of ["pen", "lock", "menu", "undo"]) {
 }
 
 ok("配置档键名固定", PROFILES_KEY === "tablet.profiles.v1");
+
+// 逐图元样式显隐：默认映射、校验回落、空数组合法。
+ok("shapeStyles 默认含矩形", Array.isArray(base.shapeStyles.rectangle) && base.shapeStyles.rectangle.length > 0);
+ok("shapeStyles 默认椭圆无圆角", !base.shapeStyles.ellipse.includes("roundness"));
+ok("shapeStyles 默认箭头有箭头端点", base.shapeStyles.arrow.includes("endArrow"));
+ok("shapeStyles 默认与源映射一致", JSON.stringify(base.shapeStyles) === JSON.stringify(DEFAULT_SHAPE_STYLES));
+const styled = normalizeLayout({
+  version: 2,
+  shapeStyles: {
+    rectangle: ["stroke", "bogus", "stroke", "background"],
+    ellipse: [],
+    arrow: "not-an-array"
+  }
+});
+check("shapeStyles 清洗非法与重复", styled.shapeStyles.rectangle, ["stroke", "background"]);
+check("shapeStyles 空数组保留", styled.shapeStyles.ellipse, []);
+check("shapeStyles 非法类型回落默认", styled.shapeStyles.arrow, DEFAULT_SHAPE_STYLES.arrow);
 
 console.log(`统一布局配置回归：${passed}/${passed} 通过`);

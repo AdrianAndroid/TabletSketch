@@ -41,20 +41,20 @@ function ringStart(count) {
   return -90 - 360 / count / 2;
 }
 
-function locateSlot(point, left, top, center, innerRadius, innerCount, outerRadius, outerCount) {
+function locateSlot(point, left, top, center, innerRadius, innerCount, outerRadius, outerCount, gap, innerMin) {
   if (!point || !Number.isFinite(point.x) || !Number.isFinite(point.y)) return null;
   const dx = point.x - left - center;
   const dy = point.y - top - center;
   const radius = Math.hypot(dx, dy);
   const angle = ((Math.atan2(dy, dx) * 180) / Math.PI + 90 + 360) % 360;
 
-  if (outerCount && radius >= innerRadius + GAP && radius <= outerRadius) {
+  if (outerCount && radius >= innerRadius + gap && radius <= outerRadius) {
     const step = 360 / outerCount;
     const index = Math.floor((angle + step / 2) / step) % outerCount;
     return { ring: "outer", index };
   }
 
-  if (!outerCount && radius >= INNER_RADIUS && radius <= innerRadius) {
+  if (!outerCount && radius >= innerMin && radius <= innerRadius) {
     const step = 360 / innerCount;
     const index = Math.floor((angle + step / 2) / step) % innerCount;
     return { ring: "inner", index };
@@ -64,9 +64,10 @@ function locateSlot(point, left, top, center, innerRadius, innerCount, outerRadi
 }
 
 function SlotVisual({ slot, showLabel, left, top }) {
+  const style = { left, top };
   if (slot.color !== undefined) {
     return (
-      <div className="ts-radial-swatch-wrap" style={{ left, top }}>
+      <div className="ts-radial-swatch-wrap" style={style}>
         <div
           className={`ts-radial-swatch${slot.color === "transparent" ? " is-none" : ""}`}
           style={slot.color === "transparent" ? undefined : { background: slot.color }}
@@ -77,17 +78,18 @@ function SlotVisual({ slot, showLabel, left, top }) {
   }
   const Icon = Icons[slot.icon] || Icons.more;
   return (
-    <div className="ts-radial-icon" style={{ left, top }}>
+    <div className="ts-radial-icon" style={style}>
       <Icon />
       {showLabel ? <span>{slot.label}</span> : null}
     </div>
   );
 }
 
-function Ring({ slots, ring, count, radius, innerRadius, center, showLabel, hoveredKey, onAction }) {
+function Ring({ slots, ring, count, radius, innerRadius, center, showLabel, hoveredKey, onAction, scale = 1 }) {
   const step = 360 / count;
   const first = ringStart(count);
-  const pathOuter = radius - 3;
+  const pathOuter = radius - 3 * scale;
+  const halfCell = 22 * scale;
 
   if (count === 1) {
     const slot = slots[0];
@@ -108,7 +110,7 @@ function Ring({ slots, ring, count, radius, innerRadius, center, showLabel, hove
             slot.key === hoveredKey ? " is-hover" : ""
           }`}
         />
-        <foreignObject x={lx - 22} y={ly - 22} width="44" height="44">
+        <foreignObject x={lx - halfCell} y={ly - halfCell} width={halfCell * 2} height={halfCell * 2}>
           <SlotVisual slot={slot} showLabel={showLabel} left={0} top={0} />
         </foreignObject>
       </g>
@@ -137,11 +139,11 @@ function Ring({ slots, ring, count, radius, innerRadius, center, showLabel, hove
                 slot.key === hoveredKey ? " is-hover" : ""
               }`}
             />
-            <foreignObject x={lx - 22} y={ly - 22} width="44" height="44">
+            <foreignObject x={lx - halfCell} y={ly - halfCell} width={halfCell * 2} height={halfCell * 2}>
               <SlotVisual slot={slot} showLabel={showLabel} left={0} top={0} />
             </foreignObject>
             {slot.current ? (
-              <circle cx={lx - 16} cy={ly - 16} r="3" className="ts-radial-current-dot" />
+              <circle cx={lx - 16 * scale} cy={ly - 16 * scale} r={3 * scale} className="ts-radial-current-dot" />
             ) : null}
           </g>
         );
@@ -153,6 +155,7 @@ function Ring({ slots, ring, count, radius, innerRadius, center, showLabel, hove
 export function RadialMenu({
   x,
   y,
+  scale = 1,
   slots = [],
   outerSlots = [],
   centerLabel = "取消",
@@ -161,6 +164,7 @@ export function RadialMenu({
   onCenter
 }) {
   const [pointer, setPointer] = useState(null);
+  const s = Number.isFinite(scale) && scale > 0 ? scale : 1;
 
   // 笔尖位置只在样式环打开时订阅（组件此时才挂载），并用 rAF 合并到每帧一次，
   // 避免每个笔报告都让样式环重渲染。鼠标位置仍走 svg 自己的 pointermove。
@@ -187,12 +191,14 @@ export function RadialMenu({
 
   const count = Math.max(1, slots.length);
   const outerCount = outerSlots.length;
-  const r1 = ringRadius(count);
-  const r2 = outerCount ? r1 + GAP + BAND : r1;
+  const innerMin = INNER_RADIUS * s;
+  const gap = GAP * s;
+  const r1 = ringRadius(count) * s;
+  const r2 = outerCount ? r1 + gap + BAND * s : r1;
   const center = r2;
   const size = r2 * 2;
 
-  const margin = r1 + 16;
+  const margin = r1 + 16 * s;
   const cx = Math.min(Math.max(x, margin), window.innerWidth - margin);
   const cy = Math.min(Math.max(y, margin), window.innerHeight - margin);
   const left = cx - r2;
@@ -201,8 +207,8 @@ export function RadialMenu({
   const activePoint = pointer;
 
   const hover = useMemo(
-    () => locateSlot(activePoint, left, top, center, r1, count, r2, outerCount),
-    [activePoint, left, top, center, r1, count, r2, outerCount]
+    () => locateSlot(activePoint, left, top, center, r1, count, r2, outerCount, gap, innerMin),
+    [activePoint, left, top, center, r1, count, r2, outerCount, gap, innerMin]
   );
 
   const hoveredSlot =
@@ -214,7 +220,7 @@ export function RadialMenu({
     const step = 360 / Math.max(1, list.length);
     const first = ringStart(Math.max(1, list.length));
     const mid = first + hover.index * step + step / 2;
-    const radius = hover.ring === "outer" ? r2 + 28 : r1 + 28;
+    const radius = hover.ring === "outer" ? r2 + 28 * s : r1 + 28 * s;
     const tx = cx + Math.cos((mid * Math.PI) / 180) * radius;
     const ty = cy + Math.sin((mid * Math.PI) / 180) * radius;
     return {
@@ -222,7 +228,7 @@ export function RadialMenu({
       x: Math.min(Math.max(tx, 92), window.innerWidth - 92),
       y: Math.min(Math.max(ty, 24), window.innerHeight - 24)
     };
-  }, [hoveredSlot, hover, slots, outerSlots, r1, r2, cx, cy]);
+  }, [hoveredSlot, hover, slots, outerSlots, r1, r2, cx, cy, s]);
 
   const showLabel = count <= 6;
   const showOuterLabel = outerCount > 0 && outerCount <= 6;
@@ -248,11 +254,12 @@ export function RadialMenu({
             ring="inner"
             count={count}
             radius={r1}
-            innerRadius={INNER_RADIUS}
+            innerRadius={innerMin}
             center={center}
             showLabel={showLabel}
             hoveredKey={hoveredSlot?.key}
             onAction={onAction}
+            scale={s}
           />
         </g>
 
@@ -263,11 +270,12 @@ export function RadialMenu({
               ring="outer"
               count={outerCount}
               radius={r2}
-              innerRadius={r1 + GAP}
+              innerRadius={r1 + gap}
               center={center}
               showLabel={showOuterLabel}
               hoveredKey={hoveredSlot?.key}
               onAction={onAction}
+              scale={s}
             />
           </g>
         ) : null}
@@ -275,11 +283,11 @@ export function RadialMenu({
         <circle
           cx={center}
           cy={center}
-          r={CENTER_RADIUS}
+          r={innerMin}
           className="ts-radial-center"
           onClick={onCenter}
         />
-        <text x={center} y={center + 5} className="ts-radial-center-label" textAnchor="middle">
+        <text x={center} y={center + 5 * s} className="ts-radial-center-label" textAnchor="middle">
           {centerLabel}
         </text>
       </svg>

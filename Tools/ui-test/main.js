@@ -212,7 +212,13 @@ const SCENARIO = String.raw`(async () => {
     const navTexts = $$(".ts-nav-item").map((n) => n.textContent.trim());
     log("设置含「布局」分组五页", ["左浮动岛", "右浮动岛", "手写笔键 1", "手写笔键 2", "板载键"].every((label) => navTexts.includes(label)), navTexts.join(" | "));
     log("设置含「配置档」页", navTexts.includes("配置档"), "");
+    log("设置含「图形样式」页", navTexts.includes("图形样式"), navTexts.join(" | "));
     log("旧死设置页已删除", !navTexts.includes("样式环") && !navTexts.includes("更多") && !navTexts.includes("气泡"), "");
+
+    // 关闭按钮必须排除窗口拖动区，否则鼠标点击被 Electron 吞掉。
+    const closeBtn = $(".ts-settings-head .ts-panel-close");
+    log("设置 X 按钮排除拖动区", !!closeBtn && getComputedStyle(closeBtn).webkitAppRegion === "no-drag",
+        closeBtn ? getComputedStyle(closeBtn).webkitAppRegion : "missing");
 
     // 右岛布局页：候选池、顺序列表、预览、排布参数。
     const rightNav = $$(".ts-nav-item").find((n) => n.textContent.includes("右浮动岛"));
@@ -581,6 +587,68 @@ const SCENARIO = String.raw`(async () => {
   log("浮岛在窗口内", ir.top >= 0 && ir.bottom <= window.innerHeight && ir.left >= 0 && ir.right <= window.innerWidth,
       Math.round(ir.top) + ".." + Math.round(ir.bottom) + " / " + window.innerHeight);
 
+  // ---------- 图形样式页（独立打开，避免打乱工具测试流程） ----------
+  window.dispatchEvent(new Event("tablet:open-settings"));
+  await sleep(220);
+  const shapeNav = $$(".ts-nav-item").find((n) => n.textContent.includes("图形样式"));
+  log("设置含图形样式页", !!shapeNav, "");
+  if (shapeNav) {
+    click(shapeNav);
+    await sleep(180);
+    const blocks = $$(".ts-shape-block");
+    log("图形样式页列出图元", blocks.length >= 9, String(blocks.length));
+    const rectBlock = blocks.find((b) => b.querySelector(".ts-shape-head")?.textContent.includes("矩"));
+    if (rectBlock) {
+      const options = Array.from(rectBlock.querySelectorAll(".ts-shape-option"));
+      const strokeOption = options.find((o) => o.textContent.includes("描边"));
+      log("矩形样式含描边勾选", !!strokeOption && strokeOption.querySelector("input")?.checked === true,
+          strokeOption?.querySelector("input")?.checked);
+      log("图形样式用勾选框", options.length > 0 && options.every((o) => !!o.querySelector("input[type=checkbox]")),
+          options.length + " 项");
+    }
+  }
+  click($(".ts-settings-head .ts-panel-close"));
+  await sleep(120);
+  log("图形样式测试后设置窗已关闭", !$(".ts-settings"), $(".ts-settings") ? "still open" : "closed");
+
+  return results;
+})()`;
+
+// UI 等比缩放：主进程改变窗口尺寸后，断言缩放变量、控件像素与笔映射解耦。
+const SCALE_SCENARIO = String.raw`(async () => {
+  const results = [];
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+  const log = (name, ok, detail = "") => results.push({ name, ok: !!ok, detail: String(detail) });
+  const $ = (s) => document.querySelector(s);
+  const scale = Number(document.documentElement.style.getPropertyValue("--ts-ui-scale"));
+  log("窗口放大后缩放比例 > 1", scale > 1, String(scale));
+  const band = $(".ts-band");
+  const bandH = band?.getBoundingClientRect().height || 0;
+  log("按键带随缩放变高", bandH > 64, Math.round(bandH) + "px");
+  const key = $(".ts-band-key");
+  const keyW = key?.getBoundingClientRect().width || 0;
+  log("按键直径随缩放变大", keyW > 26, Math.round(keyW) + "px");
+  const cell = $(".ts-cell");
+  const cellW = cell?.getBoundingClientRect().width || 0;
+  log("浮岛格随缩放变大", cellW > 44, Math.round(cellW) + "px");
+
+  // 笔映射：归一化 (0.5,0.5) 应仍落在画布中心，与 UI 缩放无关。
+  const stage = $(".ts-stage")?.getBoundingClientRect();
+  if (stage) {
+    document.dispatchEvent(new CustomEvent("ts:hid", {
+      detail: { t: "pen", ph: "hover", x: 0.5, y: 0.5, p: 0.5 }
+    }));
+    await sleep(160);
+    const cursor = $(".ts-pen-cursor");
+    const tr = cursor?.style.transform || "";
+    const m = tr.match(/translate3d\(([-\d.]+)px, ([-\d.]+)px/);
+    const cx = m ? Number(m[1]) : NaN;
+    const cy = m ? Number(m[2]) : NaN;
+    const wantX = stage.left + stage.width * 0.5;
+    const wantY = stage.top + stage.height * 0.5;
+    log("笔尖仍按画布 rect 映射", Math.abs(cx - wantX) < 2 && Math.abs(cy - wantY) < 2,
+        Math.round(cx) + "," + Math.round(cy) + " vs " + Math.round(wantX) + "," + Math.round(wantY));
+  }
   return results;
 })()`;
 
@@ -606,6 +674,12 @@ app.whenReady().then(async () => {
     await waitFor(win, "!!(window.tabletSketch && window.tabletSketch.ready)");
     await new Promise((r) => setTimeout(r, 600));
     results = await win.webContents.executeJavaScript(SCENARIO, true);
+
+    // 放大窗口再验证 UI 等比缩放；基准是启动时的 1200×760。
+    win.setSize(1600, 1013);
+    await new Promise((r) => setTimeout(r, 700));
+    const scaleResults = await win.webContents.executeJavaScript(SCALE_SCENARIO, true);
+    results = results.concat(scaleResults);
   } catch (error) {
     results = [{ name: "测试中断", ok: false, detail: error.message }];
   }
