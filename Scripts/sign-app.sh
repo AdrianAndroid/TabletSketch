@@ -31,6 +31,20 @@ echo "签名身份：${SIGN_ID}"
 
 # Electron 里 Framework 内部还有 Helpers/app_shim_loader、Libraries 等嵌套 Mach-O，
 # 逐个手写顺序容易漏，这里用 --deep 让 codesign 自己从内到外处理。
+#
+# 但 --deep 只覆盖标准代码位置（Contents/MacOS、Frameworks、Helpers…），
+# Contents/Resources/app/bin/ 不在其列，会被静默跳过。里面的 tablet-sketch-hid
+# 是真正去 seize 设备的进程，未签名时系统拒绝授予「输入监控」，
+# 表现为：笔只读可用，板载键全部失效（kIOReturnNotPermitted）。先显式签它。
+while IFS= read -r -d '' nested; do
+  case "$(file -b "$nested" 2>/dev/null)" in
+    Mach-O*) ;;
+    *) continue ;;
+  esac
+  echo "签名包内二进制：${nested#"$APP"/}"
+  codesign --force --timestamp=none --sign "$SIGN_ID" "$nested"
+done < <(find "$APP/Contents/Resources" -type f -perm -111 -print0 2>/dev/null)
+
 codesign --force --deep --timestamp=none --sign "$SIGN_ID" "$APP"
 
 echo "校验签名完整性…"
@@ -49,5 +63,15 @@ if ! printf '%s' "$DR" | grep -Eq 'certificate root|certificate leaf|anchor appl
   exit 1
 fi
 printf '%s\n' "$DR" | sed -n 's/^designated => /  designated => /p'
+
+# 采集器必须真的签上：它是 seize 设备的进程，未签名时输入监控授权不生效
+HID="$APP/Contents/Resources/app/bin/tablet-sketch-hid"
+if [ -f "$HID" ]; then
+  if ! codesign --verify --strict "$HID" 2>/dev/null; then
+    echo "错误：$HID 未签名，输入监控授权会失效（板载键将不可用）。"
+    exit 1
+  fi
+  echo "采集器签名校验通过"
+fi
 
 echo "签名完成：$APP"

@@ -52,13 +52,6 @@ final class HIDReader {
     private(set) var seized = false
     /// 鼠标 / 数位板接口的独占句柄。只锁厂商接口是拦不住系统光标的。
     private var pointerManagers: [IOHIDManager] = []
-    /// 独占失败后的退避重试：IOHIDManager 的打开方式是一次性的，
-    /// 只读打开后再调 seize 不会改变选项，所以每轮重试都要 close → reopen。
-    private var seizeRetryTimer: DispatchSourceTimer?
-    private var seizeRetryDelay: TimeInterval = 1.5
-    private var seizeRetryCount = 0
-    /// 正在 close/reopen：期间的设备移除回调不上报 disconnected，避免界面闪烁。
-    private var reseizing = false
 
     init(
         device: Device = Device(vendorID: 0x28BD, productID: 0x2904, usagePage: 0xFF0A, usage: 1),
@@ -87,6 +80,18 @@ final class HIDReader {
         IOHIDManagerRegisterInputReportCallback(manager, Self.reportReceived, context)
         IOHIDManagerScheduleWithRunLoop(manager, CFRunLoopGetMain(), CFRunLoopMode.defaultMode.rawValue)
 
+        // 「输入监控」授权是 seize 的前提。没有它，系统直接拒绝独占
+        // （kIOReturnNotPermitted），表现为：笔只读能用，但键盘接口收不到报文，
+        // 板载键 8 个键全废、卡片不亮。先自检并把真实原因报给界面。
+        if seize {
+            let access = IOHIDCheckAccess(kIOHIDRequestTypeListenEvent)
+            if access == kIOHIDAccessTypeUnknown {
+                // 只在未决定时请求一次，避免每次启动都打扰
+                IOHIDRequestAccess(kIOHIDRequestTypeListenEvent)
+            }
+            Emit.line(["t": "access", "listen": Int(access.rawValue)])
+        }
+
         // 关键：只 Open 一次。先以普通方式打开再补一次 seize 是无效的
         // —— 管理器一旦打开，第二次 Open 不会改变打开方式，会假装成功。
         var status = kIOReturnSuccess
@@ -95,7 +100,12 @@ final class HIDReader {
             if status == kIOReturnSuccess {
                 seized = true
             } else {
-                Emit.line(["t": "grab", "ok": false, "retry": 1, "status": Int(status)])
+                Emit.line([
+                    "t": "grab",
+                    "ok": false,
+                    "status": Int(status),
+                    "reason": status == kIOReturnNotPermitted ? "permission" : "busy"
+                ])
                 // 退回只读，至少还能读笔，只是拦不住系统指针
                 status = IOHIDManagerOpen(manager, IOOptionBits(kIOHIDOptionsTypeNone))
             }
@@ -113,78 +123,6 @@ final class HIDReader {
         if seized {
             Emit.line(["t": "grab", "ok": true])
             grabPointerInterfaces()
-        } else if seize {
-            // 只读兜底已生效，继续在后台抢独占
-            scheduleSeizeRetry()
-        }
-    }
-
-    // MARK: - 独占自愈
-
-    /// 按退避节奏持续重试 seize。
-    ///
-    /// 之前失败后就永久躺平：笔还能用，但板载键走的键盘接口始终是只读，
-    /// 表现为“按键全废、卡片不亮”。这里改成一直重试，抢到为止。
-    private func scheduleSeizeRetry() {
-        guard seize, !seized, seizeRetryTimer == nil else { return }
-        let timer = DispatchSource.makeTimerSource(queue: .main)
-        timer.schedule(deadline: .now() + seizeRetryDelay)
-        timer.setEventHandler { [weak self] in
-            guard let self else { return }
-            self.seizeRetryTimer = nil
-            self.attemptReseize()
-        }
-        timer.resume()
-        seizeRetryTimer = timer
-    }
-
-    private func stopSeizeRetry() {
-        seizeRetryTimer?.cancel()
-        seizeRetryTimer = nil
-        seizeRetryDelay = 1.5
-        seizeRetryCount = 0
-    }
-
-    private func attemptReseize() {
-        guard seize, !seized, let manager else { return }
-        seizeRetryCount += 1
-
-        // close 会触发设备移除回调；置位后 forget() 只清引用不上报
-        reseizing = true
-        IOHIDManagerClose(manager, IOOptionBits(kIOHIDOptionsTypeNone))
-        penDevice = nil
-        digitizerDevice = nil
-        pointerDevice = nil
-        allDevices.removeAll()
-        interfaces.removeAll()
-
-        let status = IOHIDManagerOpen(manager, IOOptionBits(kIOHIDOptionsTypeSeizeDevice))
-        if status == kIOReturnSuccess {
-            seized = true
-            reseizing = false
-            reenumerate(manager)
-            Emit.line(["t": "grab", "ok": true, "recovered": true, "retry": seizeRetryCount])
-            stopSeizeRetry()
-            grabPointerInterfaces()
-            return
-        }
-
-        // 抢不到就继续只读，保证笔还能用
-        let readOnly = IOHIDManagerOpen(manager, IOOptionBits(kIOHIDOptionsTypeNone))
-        reseizing = false
-        if readOnly == kIOReturnSuccess {
-            reenumerate(manager)
-        }
-        Emit.line(["t": "grab", "ok": false, "retry": seizeRetryCount + 1, "status": Int(status)])
-        seizeRetryDelay = min(seizeRetryDelay * 2, 8)
-        scheduleSeizeRetry()
-    }
-
-    /// close/reopen 之后旧的 IOHIDDevice 引用失效，必须重新枚举。
-    private func reenumerate(_ manager: IOHIDManager) {
-        guard let set = IOHIDManagerCopyDevices(manager) as? NSSet else { return }
-        for case let device as IOHIDDevice in set {
-            consider(device)
         }
     }
 
@@ -194,12 +132,6 @@ final class HIDReader {
     /// 光标由它们驱动。同一个 IOHIDManager 用 VID/PID 匹配只会拿到主接口，
     /// 所以按 usage 逐个再开管理器，每个都带 seize。
     private func grabPointerInterfaces() {
-        // 重试成功会再走一遍：先释放上一轮的锁，避免句柄堆积
-        for manager in pointerManagers {
-            IOHIDManagerClose(manager, IOOptionBits(kIOHIDOptionsTypeNone))
-        }
-        pointerManagers.removeAll()
-
         // Generic Desktop: Pointer(1) / Mouse(2)；Digitizer: Pen(1) / ...(2)
         // Keyboard(7,1)：板载键的固件快捷键走这个接口，seize 后由应用执行动作。
         // 所有匹配都带 VID/PID，不会碰到其它键盘。
@@ -258,8 +190,6 @@ final class HIDReader {
     /// 由 main 在启动 2 秒后调用：届时若没匹配到设备，判定为未连接。
     func checkReady() {
         guard penDevice == nil else { return }
-        // 正在重试独占的瞬间 penDevice 会被清空，这不是“未连接”
-        guard !reseizing, !seized else { return }
         onFailure?("PEN_NOT_FOUND")
     }
 
@@ -295,8 +225,6 @@ final class HIDReader {
     // MARK: - 设备挂载
 
     private func consider(_ hidDevice: IOHIDDevice) {
-        // 首次匹配与 close/reopen 后的重枚举可能重复投递同一个设备
-        if allDevices.contains(where: { CFEqual($0, hidDevice) }) { return }
         allDevices.append(hidDevice)
 
         let usagePage = (IOHIDDeviceGetProperty(hidDevice, kIOHIDPrimaryUsagePageKey as CFString) as? Int) ?? -1
@@ -348,22 +276,12 @@ final class HIDReader {
     }
 
     private func forget(_ hidDevice: IOHIDDevice) {
-        allDevices.removeAll { CFEqual($0, hidDevice) }
-        if let digitizer = digitizerDevice, CFEqual(hidDevice, digitizer) {
-            digitizerDevice = nil
-        }
-        if let pointer = pointerDevice, CFEqual(hidDevice, pointer) {
-            pointerDevice = nil
-        }
+        allDevices.removeAll { $0 === hidDevice }
         if let pen = penDevice, CFEqual(hidDevice, pen) {
             penDevice = nil
             stateMachine.reset()
             lastAuxKeys = []
-            lastKeys = (false, false, false)
-            // 重试时主动 close 也会走到这里：不上报，避免界面连接闪烁
-            if !reseizing {
-                Emit.line(["t": "disconnected"])
-            }
+            Emit.line(["t": "disconnected"])
         }
     }
 

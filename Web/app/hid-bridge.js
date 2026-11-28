@@ -29,7 +29,8 @@ class HidBridge {
     this.maxRetries = 3;
     this.stopped = false;
     this.buffer = "";
-    this.grabOk = null;
+    /** 独占失败的原因：permission（缺输入监控）/ busy（被别的进程占用）。 */
+    this.grabBlocked = null;
   }
 
   start() {
@@ -105,12 +106,20 @@ class HidBridge {
 
     if (payload.t === "ready") {
       this.retries = 0;
-      this.grabOk = payload.seized !== false;
-      // 只读模式下笔能用但板载键收不到，必须让状态说清楚，不能显示成“一切正常”
-      const message = this.grabOk
-        ? `已连接 ${payload.product}`
-        : `已连接 ${payload.product}（只读，正在重试独占）`;
-      this.onStatus?.({ state: "ready", message });
+      // 独占没成功时不能只报“已连接”：那样板载键失效会完全无声无息。
+      if (this.grabBlocked === "permission") {
+        this.onStatus?.({
+          state: "no-permission",
+          message: "只读模式：缺少「输入监控」权限，板载键不可用"
+        });
+      } else if (this.grabBlocked === "busy") {
+        this.onStatus?.({
+          state: "readonly",
+          message: `已连接 ${payload.product}（只读，板载键暂不可用）`
+        });
+      } else {
+        this.onStatus?.({ state: "ready", message: `已连接 ${payload.product}` });
+      }
       return;
     }
     if (payload.t === "error") {
@@ -119,18 +128,18 @@ class HidBridge {
     }
     if (payload.t === "grab") {
       if (payload.ok) {
-        this.grabOk = true;
-        this.onStatus?.({
-          state: "grabbed",
-          message: payload.recovered ? "已恢复独占" : "已独占手写板"
-        });
+        this.grabBlocked = null;
       } else {
-        this.grabOk = false;
-        this.onStatus?.({
-          state: "grab-retrying",
-          message: `正在重试独占（第 ${payload.retry || 1} 次）`
-        });
+        this.grabBlocked = payload.reason === "permission" ? "permission" : "busy";
       }
+      this.onStatus?.({
+        state: payload.ok ? "grabbed" : "grab-failed",
+        message: payload.ok
+          ? "已独占手写板"
+          : payload.reason === "permission"
+            ? "缺少「输入监控」权限，无法独占（板载键不可用）"
+            : "独占失败，退回只读"
+      });
       return;
     }
     if (payload.t === "bye") {

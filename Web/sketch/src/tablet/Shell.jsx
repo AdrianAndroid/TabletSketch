@@ -865,14 +865,16 @@ export function TabletShell({ onOpenSettings }) {
               grabbed ? " is-grab" : ""
             }`}
           />
-          <span className="ts-topbar-hid">
+          <span className="ts-topbar-hid" title={hidStatus?.message || ""}>
             {hidStatus?.state === "ready"
               ? "手写板已连接"
               : hidStatus?.state === "no-device"
                 ? "未检测到手写板"
                 : hidStatus?.state === "no-permission"
-                  ? "缺少输入监控权限"
-                  : "连接中"}
+                  ? "缺输入监控权限"
+                  : hidStatus?.state === "readonly"
+                    ? "只读 · 板载键不可用"
+                    : "连接中"}
           </span>
         </div>
         </div>
