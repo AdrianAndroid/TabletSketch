@@ -65,6 +65,34 @@ function invalidateStageRect() {
   stageRectCache = null;
 }
 
+/**
+ * 撤销 / 重做只能走 Excalidraw 自己的键盘动作。
+ *
+ * 0.18 的 imperative API 里 `history` 只剩 `clear`，没有 undo/redo（早版本才有），
+ * 直接调用会抛 `history.undo is not a function`，表现就是板载键点了没反应。
+ * 而它的 keydown 监听挂在 `.excalidraw` 容器上（handleKeyboardGlobally 默认关），
+ * 所以要把合成事件派发到容器本身，而不是 document。
+ */
+function fireHistoryShortcut(shift) {
+  const container = document.querySelector(".excalidraw") || canvasEl();
+  if (!container) return false;
+  const isMac = /Mac|iPhone|iPad/.test(navigator.platform || "");
+  container.dispatchEvent(
+    new KeyboardEvent("keydown", {
+      key: "z",
+      code: "KeyZ",
+      keyCode: 90,
+      which: 90,
+      bubbles: true,
+      cancelable: true,
+      metaKey: isMac,
+      ctrlKey: !isMac,
+      shiftKey: !!shift
+    })
+  );
+  return true;
+}
+
 /** 上游会对自造 pointerId 调 setPointerCapture，Safari 抛 InvalidPointerId。 */
 function patchPointerCapture() {
   const proto = Element.prototype;
@@ -443,13 +471,17 @@ function installTabletSketch(excalidrawApi) {
     // 工具锁：与 Excalidraw 原生工具栏锁按钮同语义（绘制后保持当前工具）。
     // imperative API 未暴露 toggleLock，改用 setActiveTool 复现其状态机：
     // 开启时保持当前工具并锁住；关闭时回退到选择工具。
+    // 注意不能 setActiveTool 之后立刻 getAppState 回读：React 的 setState 是批处理的，
+    // 那一刻读到的还是旧值，会导致按钮永远返回 false（提示语和图标都反了）。
     toggleToolLock() {
       const activeTool = api.getAppState().activeTool || { type: "selection" };
-      const next = activeTool.locked
-        ? { type: "selection", locked: false }
-        : { type: activeTool.type, locked: true };
-      api.setActiveTool(next);
-      return !!api.getAppState().activeTool?.locked;
+      const nextLocked = !activeTool.locked;
+      api.setActiveTool(
+        nextLocked
+          ? { type: activeTool.type, locked: true }
+          : { type: "selection", locked: false }
+      );
+      return nextLocked;
     },
     getToolLocked() {
       return !!api.getAppState().activeTool?.locked;
@@ -520,12 +552,10 @@ function installTabletSketch(excalidrawApi) {
 
     // ---- 历史 ----
     undo() {
-      api.history.undo();
-      return true;
+      return fireHistoryShortcut(false);
     },
     redo() {
-      api.history.redo();
-      return true;
+      return fireHistoryShortcut(true);
     },
 
     // ---- 视图 ----

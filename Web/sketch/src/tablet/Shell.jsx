@@ -151,6 +151,9 @@ export function TabletShell({ onOpenSettings }) {
   const radialRef = useRef(null);
   const activateRef = useRef(null);
   const toastTimerRef = useRef(0);
+  // 板载键去抖：固件会把同一次按压报成连续多帧（尤其按住不放），
+  // 切工具重复触发无害，但撤销/重做会被连撤多步，所以按 index 记最近触发时刻。
+  const padHitRef = useRef({});
 
   const visible = useMemo(() => {
     const ids = layout.surfaces.rightIsland.ids;
@@ -215,8 +218,12 @@ export function TabletShell({ onOpenSettings }) {
       }
       // 板载键：点亮位置并执行配置中的动作。键盘接口已被 seize，
       // 原生快捷键不会到达系统，动作完全由应用侧负责。
+      const now = Date.now();
       for (const index of keys) {
-        setPadFlash({ index, seq: Date.now() + index });
+        // 同一键 220ms 内的重复帧视为一次按压（固件连发），避免连撤多步。
+        if (now - (padHitRef.current[index] || 0) < 220) continue;
+        padHitRef.current[index] = now;
+        setPadFlash({ index, seq: now + index });
         const id = layoutRef.current.surfaces.onboardKeys.ids[index];
         const slot = resolveSlot(id);
         if (slot) activateRef.current?.(slot);
