@@ -768,6 +768,13 @@ TabletSketch SHALL 在手写板模式下把窗口做成「一块板子」，而�
 - **AND** 工具 id MUST 切换工具，面板 id MUST 打开对应浮层，动作 id MUST 执行对应命令
 - **AND** 当前态 MUST 由统一状态读取函数给出，不允许各界面各自计算导致不一致
 
+#### Scenario: 动作结果必须真实
+
+- **WHEN** 任一动作执行完毕
+- **THEN** 结果 MUST 在画布或工具状态上可观察，不得因调用已移除的接口而静默失败
+- **AND** 撤销 / 重做 MUST 走 Excalidraw 自身的键盘动作（见 `express-keys`「动作执行必须落到真实 API」）
+- **AND** 工具锁切换 MUST 返回本次操作意图（锁定 / 解锁），不得因 `setState` 未 flush 而恒返回同一值
+
 ## 本次变更新增需求（adapt-ui-scale-and-shape-style-toggles）
 
 ### Requirement: 窗口缩放时界面整体等比放大
