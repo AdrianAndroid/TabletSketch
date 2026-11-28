@@ -26,10 +26,12 @@ public struct PenStateMachine: Sendable {
         public var pressureOff: Double = 0.0008
         /// 点击判定：时长上限（秒）。
         public var tapMaxDuration: TimeInterval = 0.32
-        /// 点击判定：位移上限（画布 pt）。
-        public var tapMaxDistance: CGFloat = 3.5
-        /// 起笔前允许的最小压力以下抖动过滤（画布 pt）。
-        public var jitterTolerance: CGFloat = 0.35
+        /// 点击判定：归一化坐标位移上限（约合 1280pt 宽画布上的 4pt）。
+        public var tapMaxDistance: CGFloat = 0.003
+        /// 重复帧抖动过滤：归一化坐标量级。
+        /// 上报精度是 1e-4，0.0002 能滤掉量化重复点，但远小于真实单帧移动（约 0.001+）。
+        /// 曾误按「画布 pt」设为 0.35（=35% 板宽），写小字时整笔采样被吞成一条直线。
+        public var jitterTolerance: CGFloat = 0.0002
 
         public init() {}
     }
@@ -54,7 +56,8 @@ public struct PenStateMachine: Sendable {
 
     /// 输入一次采样。
     /// - Parameters:
-    ///   - point: 已经过画布映射的点；`nil` 表示落点越界（应丢弃这一笔）。
+    ///   - point: 归一化坐标（0..1）；`nil` 表示落点越界（应丢弃这一笔）。
+    ///     所有距离阈值都必须在同一坐标系里表达，不能用画布 pt。
     ///   - pressure: 归一化压力 0...1
     ///   - tipDown: 笔尖是否接触
     ///   - inRange: 笔是否在感应区
