@@ -209,12 +209,39 @@ const SCENARIO = String.raw`(async () => {
     click(hit);
     await sleep(220);
     log("设置窗打开", !!$(".ts-card"), $(".ts-card-title")?.textContent || "");
-    log("设置含「样式环」页", $$(".ts-nav-item").some((n) => n.textContent.includes("样式环")), "");
-    log("设置无「径向」页", !$$(".ts-nav-item").some((n) => n.textContent.includes("径向")), "");
-    const ringNav = $$(".ts-nav-item").find((n) => n.textContent.includes("样式环"));
-    click(ringNav);
-    await sleep(160);
-    log("样式环页为只读说明", !!$(".ts-card-note") && !$(".ts-settings-main input"), $(".ts-card-note")?.textContent || "");
+    const navTexts = $$(".ts-nav-item").map((n) => n.textContent.trim());
+    log("设置含「布局」分组五页", ["左浮动岛", "右浮动岛", "手写笔键 1", "手写笔键 2", "板载键"].every((label) => navTexts.includes(label)), navTexts.join(" | "));
+    log("设置含「配置档」页", navTexts.includes("配置档"), "");
+    log("旧死设置页已删除", !navTexts.includes("样式环") && !navTexts.includes("更多") && !navTexts.includes("气泡"), "");
+
+    // 右岛布局页：候选池、顺序列表、预览、排布参数。
+    const rightNav = $$(".ts-nav-item").find((n) => n.textContent.includes("右浮动岛"));
+    click(rightNav);
+    await sleep(180);
+    log("右岛页有形态预览", !!$(".ts-layout-preview"), "");
+    log("右岛页有顺序列表", $$(".ts-layout-chip").length > 0, String($$(".ts-layout-chip").length));
+    log("右岛页有候选池", $$(".ts-layout-pool-item").length > 0, String($$(".ts-layout-pool-item").length));
+    log("右岛候选池排除样式类别", !$$(".ts-layout-pool-label").some((n) => n.textContent.includes("样式类别")), "");
+
+    // 笔键 1 页：样式取值可编辑。
+    const key1Nav = $$(".ts-nav-item").find((n) => n.textContent.includes("手写笔键 1"));
+    click(key1Nav);
+    await sleep(180);
+    log("键1页有样式取值编辑", !!$(".ts-values-block"), "");
+    const valuesHead = $(".ts-values-head");
+    if (valuesHead) {
+      click(valuesHead);
+      await sleep(120);
+      log("样式取值可展开编辑", !!$(".ts-values-body"), "");
+    }
+
+    // 板载键页：改动作后广播布局事件。
+    const onboardNav = $$(".ts-nav-item").find((n) => n.textContent.includes("板载键"));
+    click(onboardNav);
+    await sleep(180);
+    const beforeSlots = $$(".ts-layout-chip").length;
+    log("板载键页显示 8 位", beforeSlots === 8, String(beforeSlots));
+
     click($(".ts-settings-head .ts-panel-close"));
     await sleep(120);
   }

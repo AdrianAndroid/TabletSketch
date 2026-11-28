@@ -1,5 +1,5 @@
-// 笔侧键 2 工具环：只负责把浮岛槽位排成两级环，不复制任何工具能力。
-import { DEFAULT_SLOTS, TOOL_LABEL } from "./tool-slots.js";
+// 笔侧键 2 工具环：把配置的槽位排成两级环，不复制任何工具能力。
+import { resolveSlot, defaultLayout } from "./layout-config.js";
 
 export const TOOL_WHEEL_INNER_IDS = [
   "pen",
@@ -23,35 +23,29 @@ const MORE_SLOT = {
   tip: "更多工具"
 };
 
-const SLOT_BY_ID = new Map(DEFAULT_SLOTS.map((slot) => [slot.id, slot]));
-
-function toRadialSlot(slot, tool, toolLocked) {
+function toRadialSlot(slot, tool, toolLocked, panel) {
   const isCurrent = slot.tool
     ? tool === slot.tool
     : slot.action === "lock"
       ? !!toolLocked
-      : false;
-  const fullLabel = slot.tool ? TOOL_LABEL[slot.tool] || slot.label : slot.label;
-  return {
-    ...slot,
-    key: slot.id,
-    kind: "tool",
-    current: isCurrent,
-    tip: isCurrent ? `${fullLabel} · 当前` : fullLabel
-  };
+      : slot.panel
+        ? panel === slot.panel
+        : false;
+  const tip = isCurrent ? `${slot.label} · 当前` : slot.label;
+  return { ...slot, kind: "tool", current: isCurrent, tip };
 }
 
 /** 构建工具环一级槽位与「更多」外圈槽位。 */
-export function buildToolWheel(tool = "selection", context = null, toolLocked = false) {
-  const slots = TOOL_WHEEL_INNER_IDS.map((id) => SLOT_BY_ID.get(id))
-    .filter(Boolean)
-    .map((slot) => toRadialSlot(slot, tool, toolLocked));
+export function buildToolWheel(tool = "selection", context = null, toolLocked = false, layout = null, panel = null) {
+  const config = layout?.surfaces?.penKey2;
+  const ids = Array.isArray(config?.ids) && config.ids.length ? config.ids : [...TOOL_WHEEL_INNER_IDS, ...TOOL_WHEEL_OUTER_IDS];
+  const innerLimit = Number.isFinite(config?.inner) ? Math.max(2, Math.round(config.inner)) : 9;
+  const outerLimit = Number.isFinite(config?.outer) ? Math.max(2, Math.round(config.outer)) : 8;
+  const innerIds = ids.slice(0, innerLimit - 1);
+  const outerIds = ids.slice(innerLimit - 1, innerLimit - 1 + outerLimit);
+  const slots = innerIds.map((id) => resolveSlot(id)).filter(Boolean).map((slot) => toRadialSlot(slot, tool, toolLocked, panel));
+  const outerSlots = outerIds.map((id) => resolveSlot(id)).filter(Boolean).map((slot) => toRadialSlot(slot, tool, toolLocked, panel));
   slots.push(MORE_SLOT);
-
-  const outerSlots = TOOL_WHEEL_OUTER_IDS.map((id) => SLOT_BY_ID.get(id))
-    .filter(Boolean)
-    .map((slot) => toRadialSlot(slot, tool, toolLocked));
-
   return {
     mode: "tool",
     level: 1,
@@ -61,4 +55,9 @@ export function buildToolWheel(tool = "selection", context = null, toolLocked = 
     centerLabel: "取消",
     initialSingle: false
   };
+}
+
+/** 供回归与设置面板使用：出厂工具环的 id 顺序。 */
+export function defaultToolWheelIds() {
+  return defaultLayout().surfaces.penKey2.ids.slice();
 }

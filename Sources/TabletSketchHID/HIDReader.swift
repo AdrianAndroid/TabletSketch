@@ -116,7 +116,9 @@ final class HIDReader {
     /// 所以按 usage 逐个再开管理器，每个都带 seize。
     private func grabPointerInterfaces() {
         // Generic Desktop: Pointer(1) / Mouse(2)；Digitizer: Pen(1) / ...(2)
-        let targets: [(Int, Int)] = [(1, 2), (1, 1), (0x0D, 2), (0x0D, 1)]
+        // Keyboard(7,1)：板载键的固件快捷键走这个接口，seize 后由应用执行动作。
+        // 所有匹配都带 VID/PID，不会碰到其它键盘。
+        let targets: [(Int, Int)] = [(1, 2), (1, 1), (0x0D, 2), (0x0D, 1), (7, 1)]
         for (page, usage) in targets {
             let manager = IOHIDManagerCreate(kCFAllocatorDefault, IOOptionBits(kIOHIDOptionsTypeNone))
             let matching: [String: Any] = [

@@ -133,33 +133,19 @@ TabletSketch SHALL 只识别 XP-Pen Deco 640（VID `0x28bd` / PID `0x2904`），
 
 ### Requirement: 板载 8 键
 
-板载键 SHALL 通过 page 1 的 `Report ID 6` 键盘报告识别（实测修正：不再假设厂商通道 `Report ID 3` 位图）。
+采集器 SHALL 读取板载 8 键的键盘报告并上报给应用。
 
-#### Scenario: 键位识别
+#### Scenario: 接口抓取
 
-- **WHEN** 收到 `Report ID 6` 且 `keycode ≠ 0`
-- **THEN** 应用 MUST 按 `(modifier << 8) | keycode` 查表得到 0–7 索引
-- **AND** MUST 以边沿触发方式发送 `aux` 事件，按住不放只发一次
+- **WHEN** 采集器以 seize 方式打开设备
+- **THEN** MUST 在现有鼠标 / 数位化接口之外，额外按本板 VID/PID seize 键盘接口
+- **AND** MUST NOT 按 usage 全局匹配其它设备的键盘
 
-真机映射（逐键实测）：
+#### Scenario: 上报
 
-| 键 | modifier | keycode | 固件含义 |
-|---|---|---|---|
-| 1 | 0 | `0x05` | `b` 画笔 |
-| 2 | 0 | `0x08` | `e` 橡皮 |
-| 3 | 0 | `0x2F` | `[` 笔刷变细 |
-| 4 | 0 | `0x30` | `]` 笔刷变粗 |
-| 5 | 1 | `0x56` | `Ctrl` + 小键盘 `-` |
-| 6 | 1 | `0x57` | `Ctrl` + 小键盘 `+` |
-| 7 | 1 | `0x1D` | `Ctrl+Z` 撤销 |
-| 8 | 3 | `0x1D` | `Ctrl+Shift+Z` 重做 |
-
-#### Scenario: 可见反馈
-
-- **WHEN** 收到板载键事件
-- **THEN** 按键带上对应位置 MUST 点亮 26pt 主色圆 + 数字
-- **AND** MUST 在 180ms 后消失
-- **AND** MUST NOT 再触发画布动作（动作由固件映射的原生快捷键完成，重复执行会双重生效）
+- **WHEN** 收到 Report ID 6 的键盘报告且组合键命中板载键映射表
+- **THEN** MUST 发出 `{"t":"aux","keys":[index]}` 且只发一次（边沿触发）
+- **AND** 应用 MUST 按当前板载键布局执行对应动作，MUST NOT 只点亮按键带
 
 ### Requirement: 坐标映射范围
 
@@ -338,3 +324,15 @@ HID 解析数据 SHALL 只在本地处理。
 - **WHEN** 用户按 `\` 且焦点不在输入框或文本编辑器
 - **THEN** MUST 触发侧键 1 的样式环动作
 - **AND** MUST 使用最后一次鼠标位置作为圆心
+
+## 本次变更新增需求（refactor-configurable-layouts）
+
+### Requirement: 拦截边界
+
+应用 SHALL 保证板载键拦截不影响其它输入设备。
+
+#### Scenario: 作用域
+
+- **WHEN** 系统中还有其它键盘
+- **THEN** 采集器 MUST NOT seize 其它键盘接口，其它键盘 MUST 正常输入
+- **AND** 只有 Deco 640（VID `0x28BD` / PID `0x2904`）的键盘报告被接管

@@ -288,39 +288,12 @@ TabletSketch SHALL 在手写板模式下把窗口做成「一块板子」，而�
 
 ### Requirement: 笔侧键 2 工具环
 
-应用 SHALL 用笔侧键 2 在笔尖位置呼出工具环，作为右侧浮岛工具槽位的第二入口。工具环 MUST 与浮岛共用同一份槽位定义与执行函数，MUST NOT 新增第二套工具功能表。
-
-#### Scenario: 呼出与弹出壳
-
-- **WHEN** 用户按下笔侧键 2 且当前没有笔画进行中
-- **THEN** 工具环 MUST 在笔尖位置弹出并跟随笔移动
-- **AND** 弹出壳 MUST 与键 1 样式环一致：rAF 合帧悬停、实色扇区、中心取消、外环展开后中心返回
-- **AND** Esc、窗口失焦、窗口缩放、HID 断开 MUST 关闭工具环
-- **AND** 工具环 MUST NOT 要求已选中图元
-
-#### Scenario: 槽位排列
+#### Scenario: 槽位排列来自配置
 
 - **WHEN** 工具环打开
-- **THEN** 内圈 MUST 为笔、擦、选、手、矩、椭、箭、字与「更多」共 9 槽
-- **AND** 展开「更多」后外圈 MUST 为菱、线、图、素材、锁共 5 槽
-- **AND** 当前工具 MUST 在内圈对应槽位显示当前态圆点
-- **AND** 锁槽的当前态 MUST 跟随工具锁 `activeTool.locked`，MUST NOT 使用「选中元素是否全部锁定」
-- **AND** 「菜单」「画布」MUST NOT 出现在工具环中
-
-#### Scenario: 点选执行
-
-- **WHEN** 笔尖或鼠标点中工具环的一个槽位
-- **THEN** 应用 MUST 调用与右侧浮岛相同的 `activate(slot)` 路径
-- **AND** 工具槽 MUST 切换工具并保持到下一次落笔，素材槽 MUST 打开素材面板
-- **AND** 锁槽 MUST 切换 Excalidraw 工具锁（与原生工具栏锁按钮同语义）：开启后绘制完成不跳回选择工具，关闭后回到选择工具
-- **AND** 锁槽 MUST NOT 修改选中元素的 `locked` 字段
-- **AND** 执行后工具环 MUST 立即关闭
-
-#### Scenario: 与键 1 共存
-
-- **WHEN** 工具环已打开
-- **THEN** 键 1 样式环 MUST 可替换它打开，屏幕上 MUST NOT 同时存在两个环
-- **AND** 鼠标右键 MUST 继续只模拟键 1，MUST NOT 为键 2 新增鼠标入口
+- **THEN** 内圈与外圈按钮 MUST 由 `layout.v2` 的 `penKey2.ids` 与 `inner` 容量切分
+- **AND** 未配置时 MUST 回落默认内圈 8 工具 + 更多、外圈 5 低频项
+- **AND** 执行 MUST 继续走与右浮岛相同的 `activate(slot)` 路径
 
 ### Requirement: 落笔淡出
 
@@ -468,158 +441,20 @@ TabletSketch SHALL 在手写板模式下把窗口做成「一块板子」，而�
 
 ### Requirement: 样式环（笔侧键 1）
 
-应用 SHALL 用笔侧键 1 在笔光标位置弹出两级样式环，而不是动作菜单。环最多两层同心圆环，每层扇区数 1–10。
+应用 SHALL 在笔侧键 1 按下时于笔尖位置弹出样式环。
 
-#### Scenario: 弹出条件
-
-- **WHEN** 用户按下映射为「样式环」的笔侧键
-- **THEN** 若存在选中图元，菜单 MUST 以笔光标当前位置为圆心弹出
-- **AND** 若无选中图元，MUST NOT 弹出，MUST 显示「先选中图形」提示
-- **AND** 若笔尖处于接触状态（tip down），MUST 忽略本次按键
-- **AND** 弹出 MUST NOT 改变当前选中集、MUST NOT 移动画布视口
-
-#### Scenario: 槽位数量与「更多样式」
-
-- **WHEN** 当前层项目数 ≤ 10
-- **THEN** 有几项就显示几个扇区，从 12 点起顺时针等分
-- **WHEN** 当前层项目数 > 10
-- **THEN** 前 9 项 MUST 占内环扇区，第 10 槽 MUST 为「更多样式」
-- **AND** 点「更多样式」MUST 在内环外侧展开外环，MUST NOT 翻页
-- **AND** 外环展开时内环 MUST 降为半透明且不可点，只有中心「返回」可点
-- **AND** 外环 MUST 显示剩余项目，最多 10 个
-- **AND** 点中外环项目 MUST 收起外环并进入对应二级取值
-- **AND** 最多两层环，合计最多 19 项；超过 19 项时 MUST 落到浮岛「更多」面板并记录警告
-- **AND** 当前图元类型最多 9 个类别，外环不会在真实数据下自然触发；实现 MUST 用 mock 数据覆盖并验证
-
-#### Scenario: 一级类别
-
-- **WHEN** 一级环渲染
-- **THEN** 类别 MUST 由当前选中元素的类型决定，不得固定为动作项
-- **AND** 矩形 / 菱形 / 椭圆 MUST 提供：描边、背景、描边宽度、边框样式、线条风格、边角、透明度
-- **AND** 直线 MUST 提供：描边、背景、描边宽度、边框样式、线条风格、起点箭头、终点箭头、透明度
-- **AND** 直线 MUST NOT 提供 Arrow type
-- **AND** 箭头 MUST 提供：描边、背景、描边宽度、边框样式、线条风格、Arrow type、起点箭头、终点箭头、透明度
-- **AND** 自由笔 MUST 提供：描边、背景、描边宽度、透明度
-- **AND** 文字 MUST 提供：描边、字体、字体大小、文本对齐、透明度
-- **AND** 画框 MUST 只提供透明度
-- **AND** 嵌入网页 MUST 提供与基础图形相同的类别，前提是该属性可写
-- **AND** 图片 MUST NOT 进入样式环
-- **AND** 混合选中 MUST 取各类型可用类别的交集
-- **AND** 当前层只有 1 项时 MUST 跳过一级，直接打开取值环，中心为「取消」
-- **AND** 交集只有 2 项时 MUST 渲染为上下半环
-- **AND** 直线不支持箭头时 MUST 隐藏起点 / 终点箭头
-- **AND** 自由笔没有背景属性时 MUST 隐藏背景
-- **AND** 画框 / 嵌入的样式实测无可见效果时 MUST 隐藏对应类别，不得显示假控件
-
-#### Scenario: 二级取值
-
-- **WHEN** 用户点中一个一级类别
-- **THEN** 菜单 MUST 在同一圆心切换到该类别下的取值环
-- **AND** 当前生效值 MUST 有高亮态
-- **AND** 笔悬停到某取值上时 MUST 提前高亮该扇区
-- **AND** 悬停提示 MUST 显示「名称 + 当前值」
-- **AND** 点中取值 MUST 立即应用并关闭菜单
-
-#### Scenario: 当前值与非预设值
-
-- **WHEN** 当前值精确等于某个预设项
-- **THEN** 该项 MUST 高亮
-- **WHEN** 当前值不在预设项中（例如自定义颜色、非预设字号、73% 透明度）
-- **THEN** MUST NOT 高亮任何预设项
-- **AND** 悬停提示 MUST 显示真实当前值
-- **AND** 点选预设项后 MUST 写入该预设的精确值
-
-#### Scenario: 颜色与字号取值
-
-- **WHEN** 二级环显示描边或背景颜色
-- **THEN** MUST 使用 6 个固定预设色
-- **AND** 背景 MUST 额外提供「无填充」，共 7 项
-- **AND** MUST NOT 提供自定义取色器或任意十六进制输入
-- **WHEN** 二级环显示字号
-- **THEN** MUST 只提供 S / M / L / XL
-- **AND** MUST NOT 提供自定义字号输入
-
-#### Scenario: 透明度与端点取值
-
-- **WHEN** 二级环显示透明度
-- **THEN** MUST 提供 8 档：100 / 90 / 80 / 70 / 50 / 30 / 20 / 10
-- **AND** MUST NOT 提供 0
-- **WHEN** 二级环显示起点或终点箭头
-- **THEN** MUST 提供实际可写枚举：无 / 箭头 / 三角 / 竖线 / 圆点
-- **AND** 起点与终点 MUST 分别设置
-
-#### Scenario: 扇区显示与提示
-
-- **WHEN** 当前层有 3–6 个项目
-- **THEN** 每个扇区 MUST 显示图标 + 不超过 2 个字的标签
-- **WHEN** 当前层有 7–10 个项目
-- **THEN** 每个扇区 MUST 只显示图标，完整名称由悬停提示承担
-- **AND** 悬停提示 MUST 位于最外层环之外，靠近悬停扇区的角平分线
-- **AND** 悬停提示 MUST NOT 拦截笔点击或鼠标点击
-- **AND** 贴窗口边缘时提示 MUST 翻转方向，不得裁切
-- **AND** 笔离开扇区或环关闭时提示 MUST 立即隐藏
-
-#### Scenario: 返回与关闭
-
-- **WHEN** 用户点中二级环中心
-- **THEN** 菜单 MUST 返回一级，MUST NOT 应用任何样式
-- **WHEN** 用户点中一级环中心或空白处
-- **THEN** 菜单 MUST 关闭，MUST NOT 应用任何样式
-- **WHEN** 外环已展开且用户点中外环中心
-- **THEN** 菜单 MUST 只收起外环，MUST NOT 关闭内环
-- **WHEN** 用户按下 Esc、窗口失焦、窗口缩放或 HID 断开
-- **THEN** 菜单 MUST 关闭
-- **WHEN** 菜单已打开且用户按下侧键 1 或侧键 2
-- **THEN** 菜单 MUST NOT 关闭、MUST NOT 执行动作
-
-#### Scenario: 作用范围
-
-- **WHEN** 用户在二级环点中一个取值
-- **THEN** 改动 MUST 应用到所有当前选中元素
-- **AND** MUST 同时更新下一笔的默认样式
-- **AND** 每次改档 MUST 作为一次可撤销操作进入撤销栈，不合并多次点选
-- **AND** 写入失败时菜单 MUST 保留，并显示失败提示
-
-#### Scenario: 特殊元素
-
-- **WHEN** 选中元素全部锁定
-- **THEN** MUST NOT 打开样式环，MUST 提示「元素已锁定」
-- **WHEN** 选中元素部分锁定
-- **THEN** MUST 只修改未锁定元素
-- **WHEN** 选中分组
-- **THEN** MUST 修改整组
-- **WHEN** 形状带有绑定文字
-- **THEN** 改形状颜色或透明度 MUST NOT 自动修改绑定文字
-- **WHEN** 混合选中包含图片
-- **THEN** MUST 先过滤图片，对剩余元素取交集；全部被过滤时 MUST 提示无可改元素
-
-#### Scenario: 层级与空隙
+#### Scenario: 内容来自配置
 
 - **WHEN** 样式环打开
-- **THEN** 遮罩 MUST 在菜单之下，内环与外环的扇区 MUST 可被笔尖或鼠标点中
-- **AND** 遮罩只负责「点空白关闭」，MUST NOT 拦截扇区点击
-- **AND** 内外环之间的空隙 MUST 由透明命中盘承接，点击空隙 MUST NOT 关闭菜单
+- **THEN** 一级类别与顺序 MUST 由 `layout.v2` 的 `penKey1.ids` 决定
+- **AND** 二级取值 MUST 由 `layout.v2.values[类别]` 决定，含用户自定义取值与自定义颜色
+- **AND** 未配置该类别时 MUST 回落默认类别表与默认取值
+- **AND** 自定义取值的当前态高亮 MUST 按 patch 内容匹配，不只按预设 key
 
-#### Scenario: 动画
+#### Scenario: 弹出壳不变
 
-- **WHEN** 一级环打开
-- **THEN** 扇区 MUST 从 12 点起顺时针依次淡入，间隔 14ms，单槽 64ms，同时向外扩 4pt
-- **AND** 中心 MUST 在 0ms 直接出现
-- **AND** 总时长 MUST NOT 超过 200ms
-- **WHEN** 一级切换到二级
-- **THEN** MUST 使用 90ms 交叉淡入，不依次
-- **WHEN** 外环展开
-- **THEN** 内圈 MUST 保持实色底色、仅在 90ms 内淡化其图标，MUST NOT 使用整体 `opacity` 造成透视
-- **AND** 外环 MUST 从内向外依次淡入
-- **WHEN** 关闭或应用样式
-- **THEN** MUST 立即关闭，不做退场动画
-- **AND** 命中测试 MUST 从第 0 帧开始，不等动画完成
-
-#### Scenario: 减少动态
-
-- **WHEN** 系统开启「减少动态效果」
-- **THEN** MUST 取消依次显示，整环 60ms 淡入或直接出现
-- **AND** 功能不得受影响
+- **WHEN** 样式环打开
+- **THEN** 弹出位置、跟随笔、rAF 悬停高亮、实色扇区、中心返回、外环展开 MUST 保持既有行为
 
 ### Requirement: 更多面板编辑动作
 
@@ -891,59 +726,14 @@ TabletSketch SHALL 在手写板模式下把窗口做成「一块板子」，而�
 
 ### Requirement: 左侧样式浮动岛
 
-界面左侧 SHALL 提供一块常驻样式岛，在有选中图元时显示，让笔无需经侧键径向菜单即可浏览并修改当前选中图形的样式。左侧样式岛 MUST 与侧键样式环共用 `style-wheel.js` 的同一份样式定义，MUST NOT 新增样式能力或改变 Excalidraw 原生写入与撤销行为。
+应用 SHALL 在选中图元时常驻显示左侧样式岛。
 
-#### Scenario: 无选中时隐藏
+#### Scenario: 内容来自配置
 
-- **WHEN** 当前没有选中图元，或选中集的样式类别交集为空
-- **THEN** 左侧样式岛 MUST NOT 显示（整岛隐藏）
-- **AND** 不得订阅笔位置事件，保持零常驻开销
-
-#### Scenario: 有选中时显示类别
-
-- **WHEN** 用户选中一个或多个图元
-- **THEN** 左侧样式岛 MUST 显示，类别与顺序 MUST 与侧键样式环的 `categoriesFor` 一致
-- **AND** 每个类别按钮 MUST 显示当前值预览：颜色类显示色块，其它显示 `formatCurrent` 文本
-
-#### Scenario: 笔悬停即展开取值条
-
-- **WHEN** 笔尖悬停某个类别按钮并停留达到 100ms
-- **THEN** 该按钮 MUST 高亮
-- **AND** 该类别的取值条 MUST 自动在该按钮右侧展开（无需点击类别按钮）
-- **AND** 取值项 MUST 来自 `buildLevel2` 的现有预设，当前值 MUST 高亮
-- **AND** 笔快速掠过（停留不足 100ms）MUST NOT 触发高亮，MUST NOT 展开取值条
-
-#### Scenario: 点击类别幂等
-
-- **WHEN** 笔或鼠标点击某个类别按钮
-- **THEN** 该类别的取值条 MUST 保持展开
-- **AND** MUST NOT 因点击已经展开的类别按钮而收起取值条
-
-#### Scenario: 移入取值条不收起
-
-- **WHEN** 笔从类别按钮移动到右侧取值条
-- **THEN** 取值条 MUST NOT 收起
-- **AND** 离开类别按钮与取值条两者后 200ms 才收起
-
-#### Scenario: 笔悬停取值项高亮
-
-- **WHEN** 笔尖悬停某个取值项（由 `tablet:penpos` 命中 `[data-ts-style-value]`）
-- **THEN** 该取值项 MUST 显示高亮，MUST 与鼠标悬停视觉一致
-- **AND** 高亮 MUST NOT 依赖 CSS `:hover`，因为笔位置是虚拟的
-- **AND** 笔移开取值项后高亮 MUST 清除
-
-#### Scenario: 点击取值应用
-
-- **WHEN** 用户点击某个取值项
-- **THEN** MUST 经 `setStyle` 立即应用该样式并收起取值条
-- **AND** 应用结果 MUST 与普通样式环一致地进入 Excalidraw 撤销栈
-- **AND** 取值项高亮 MUST 一并清除
-
-#### Scenario: 取值条不透明
-
-- **WHEN** 取值条展开
-- **THEN** 其背景 MUST 为实色，MUST NOT 透出下方画布图案、选中框或笔迹
-- **AND** 所有控件 MUST 位于 `[data-ts-ui]` 容器内，笔落点 MUST NOT 穿透到画布
+- **WHEN** 左侧样式岛渲染
+- **THEN** 类别按钮与顺序 MUST 由 `layout.v2` 的 `leftIsland.ids` 决定
+- **AND** 取值项 MUST 与笔键 1 共用 `layout.v2.values`，自定义取值同步可见
+- **AND** 悬停 100ms 高亮并展开、笔位置驱动取值项高亮 MUST 保持既有行为
 
 ### Requirement: 右侧工具岛禁左
 
@@ -963,3 +753,16 @@ TabletSketch SHALL 在手写板模式下把窗口做成「一块板子」，而�
 
 - **WHEN** 右侧工具岛位置改变
 - **THEN** 读数板位置 MUST 保持在右上角不变
+
+## 本次变更新增需求（refactor-configurable-layouts）
+
+### Requirement: 统一动作执行
+
+应用 SHALL 让右浮岛、左岛、两个工具环与板载键共用同一个动作执行路径。
+
+#### Scenario: 同一 id 同语义
+
+- **WHEN** 任一界面点中按钮 id `X`
+- **THEN** MUST 调用同一个 `activate` 分支，产生与 id 对应的唯一动作
+- **AND** 工具 id MUST 切换工具，面板 id MUST 打开对应浮层，动作 id MUST 执行对应命令
+- **AND** 当前态 MUST 由统一状态读取函数给出，不允许各界面各自计算导致不一致

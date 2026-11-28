@@ -194,22 +194,38 @@ function isCurrent(key, option, context) {
   if (key === "strokeWidth" || key === "roughness" || key === "fontFamily" || key === "fontSize" || key === "opacity") {
     return String(raw) === option.key;
   }
+  // 自定义取值：patch 内容可能与预设 key 不同，按 patch 字段逐一比对。
+  if (option.patch && typeof option.patch === "object") {
+    const entries = Object.entries(option.patch);
+    if (entries.length) {
+      const style = context?.style || {};
+      return entries.every(([field, value]) => {
+        if (key === "arrowType" && field === "roundness") return true;
+        return style[field] === value || String(style[field]) === String(value);
+      });
+    }
+  }
   return raw === option.key;
 }
 
-function currentLabel(key, context) {
-  const def = CATEGORIES[key];
-  if (!def) return null;
-  const option = def.options(context).find((item) => isCurrent(key, item, context));
+/** 取值来源：优先用配置里的可编辑取值，未配置时回落 v1 预设。 */
+function optionsFor(category, layout, context) {
+  const configured = layout?.values?.[category];
+  if (Array.isArray(configured) && configured.length) return configured;
+  return CATEGORIES[category]?.options(context) || [];
+}
+
+function currentLabel(key, context, layout) {
+  if (!CATEGORIES[key]) return null;
+  const option = optionsFor(key, layout, context).find((item) => isCurrent(key, item, context));
   return option ? option.label : null;
 }
 
 /** 当前值的可读文本：预设命中用标签，非预设直接显示真实值。 */
-export function formatCurrent(key, context) {
-  const def = CATEGORIES[key];
-  if (!def) return "";
+export function formatCurrent(key, context, layout) {
+  if (!CATEGORIES[key]) return "";
   if (isMixed(key, context)) return "多值";
-  const hit = currentLabel(key, context);
+  const hit = currentLabel(key, context, layout);
   if (hit) return hit;
   const raw = rawCurrent(key, context);
   if (raw === null || raw === undefined) {
@@ -222,16 +238,20 @@ export function formatCurrent(key, context) {
   return String(raw);
 }
 
-export function categoriesFor(types = [], context = null) {
+export function categoriesFor(types = [], context = null, layout = null, surfaceId = "penKey1") {
   const filtered = types.filter((type) => type !== "image" && TYPE_CATEGORIES[type]);
   if (!filtered.length) return [];
   const lists = filtered.map((type) => TYPE_CATEGORIES[type]);
-  return ORDER.filter((key) => lists.every((list) => list.includes(key)));
+  const compatible = ORDER.filter((key) => lists.every((list) => list.includes(key)));
+  const configIds = layout?.surfaces?.[surfaceId]?.ids;
+  if (!Array.isArray(configIds) || !configIds.length) return compatible;
+  // 配置决定显示哪些类别与顺序；仍受图元类型兼容性约束。
+  return configIds.filter((key) => compatible.includes(key) && CATEGORIES[key]);
 }
 
-function categorySlot(key, context) {
+function categorySlot(key, context, layout) {
   const def = CATEGORIES[key];
-  const current = formatCurrent(key, context);
+  const current = formatCurrent(key, context, layout);
   const label = def.label;
   return {
     key,
@@ -242,10 +262,10 @@ function categorySlot(key, context) {
   };
 }
 
-function valueSlot(category, option, context) {
+function valueSlot(category, option, context, layout) {
   const def = CATEGORIES[category];
   const current = isCurrent(category, option, context);
-  const currentText = formatCurrent(category, context);
+  const currentText = formatCurrent(category, context, layout);
   return {
     key: `${category}:${option.key}`,
     label: option.label,
@@ -265,14 +285,14 @@ export function splitOverflow(items) {
   return { slots: [...items.slice(0, 9), MORE_SLOT], outer: items.slice(9) };
 }
 
-export function buildLevel1(context) {
-  const categories = categoriesFor(context?.selectedTypes, context);
+export function buildLevel1(context, layout = null) {
+  const categories = categoriesFor(context?.selectedTypes, context, layout, "penKey1");
   if (!categories.length) return null;
   if (categories.length === 1) {
-    const level2 = buildLevel2(categories[0], context);
+    const level2 = buildLevel2(categories[0], context, layout);
     return level2 ? { ...level2, centerLabel: "取消", initialSingle: true } : null;
   }
-  const slots = categories.map((key) => categorySlot(key, context));
+  const slots = categories.map((key) => categorySlot(key, context, layout));
   const split = splitOverflow(slots);
   return {
     level: 1,
@@ -284,10 +304,10 @@ export function buildLevel1(context) {
   };
 }
 
-export function buildLevel2(category, context) {
+export function buildLevel2(category, context, layout = null) {
   const def = CATEGORIES[category];
   if (!def) return null;
-  const slots = def.options(context).map((option) => valueSlot(category, option, context));
+  const slots = optionsFor(category, layout, context).map((option) => valueSlot(category, option, context, layout));
   const split = splitOverflow(slots);
   return {
     level: 2,
@@ -307,8 +327,8 @@ export function categoryLabel(category) {
  * 左侧样式岛的一级类别按钮。与侧键样式环共用 CATEGORIES / categoriesFor，
  * 额外补上当前值的色块与文本，供常驻可见的按钮直接预览。
  */
-export function buildCategoryButtons(context) {
-  return categoriesFor(context?.selectedTypes, context).map((key) => {
+export function buildCategoryButtons(context, layout = null) {
+  return categoriesFor(context?.selectedTypes, context, layout, "leftIsland").map((key) => {
     const def = CATEGORIES[key];
     const raw = rawCurrent(key, context);
     const showColor = key === "stroke" || key === "background";
@@ -317,14 +337,14 @@ export function buildCategoryButtons(context) {
       label: def.label,
       icon: def.icon,
       color: showColor ? (raw ?? (key === "background" ? "transparent" : undefined)) : undefined,
-      current: formatCurrent(key, context)
+      current: formatCurrent(key, context, layout)
     };
   });
 }
 
 /** 左侧样式岛的取值项：合并溢出槽位，常驻条不分页。 */
-export function buildValueItems(category, context) {
-  const built = buildLevel2(category, context);
+export function buildValueItems(category, context, layout = null) {
+  const built = buildLevel2(category, context, layout);
   if (!built) return [];
   return [...built.slots, ...built.outerSlots].filter((slot) => slot.kind === "value");
 }

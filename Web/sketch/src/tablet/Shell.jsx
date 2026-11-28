@@ -10,16 +10,9 @@ import { PenTelemetry, PenTelemetryChip } from "./PenTelemetry.jsx";
 import { LeftStyleIsland } from "./LeftStyleIsland.jsx";
 import { buildLevel1, buildLevel2, categoryLabel } from "./style-wheel";
 import { buildToolWheel } from "./tool-wheel";
-import { DEFAULT_SLOTS, TOOL_LABEL } from "./tool-slots";
+import { TOOL_LABEL } from "./tool-slots";
+import { loadLayout, buildSurfaceSlots, resolveSlot } from "./layout-config.js";
 import "./chrome.css";
-
-/** 双排上限 16 格，超过部分进「更多」。 */
-const VISIBLE_LIMIT = 15;
-
-// 配置是静态的：提到模块级避免每次 render 重建数组，
-// 否则任何依赖 [visible] 的 effect 都会被反复清理/重订阅。
-const VISIBLE_SLOTS = DEFAULT_SLOTS.slice(0, VISIBLE_LIMIT);
-const OVERFLOW_SLOTS = DEFAULT_SLOTS.slice(VISIBLE_LIMIT);
 
 function bridge() {
   return window.tabletSketch ?? null;
@@ -117,6 +110,8 @@ export function TabletShell({ onOpenSettings }) {
   const [activeBoard, setActiveBoard] = useState(null);
   const [islandPos, setIslandPos] = useState(loadIslandPos);
   const [islandDragging, setIslandDragging] = useState(false);
+  const [layout, setLayout] = useState(loadLayout);
+  const layoutRef = useRef(layout);
   const islandRef = useRef(null);
   const dragRef = useRef(null);
   // 笔最近一次落点：径向菜单和样式气泡都以它为中心，而不是屏幕中心
@@ -126,10 +121,22 @@ export function TabletShell({ onOpenSettings }) {
   const cursorElRef = useRef(null);
   const cursorShapeRef = useRef(cursorShape);
   const radialRef = useRef(null);
+  const activateRef = useRef(null);
   const toastTimerRef = useRef(0);
 
-  const visible = VISIBLE_SLOTS;
-  const overflow = OVERFLOW_SLOTS;
+  const visible = useMemo(() => {
+    const ids = layout.surfaces.rightIsland.ids;
+    const limit = layout.surfaces.rightIsland.limit || ids.length;
+    return buildSurfaceSlots("rightIsland", layout, { tool, toolLocked, panel: openPanel }).slice(0, limit);
+  }, [layout, tool, toolLocked, openPanel]);
+  const overflow = useMemo(() => {
+    const ids = layout.surfaces.rightIsland.ids;
+    const limit = layout.surfaces.rightIsland.limit || ids.length;
+    return ids.slice(limit).map((id) => resolveSlot(id)).filter((slot) => {
+      if (!slot) return false;
+      return !visible.some((v) => v.id === slot.id);
+    });
+  }, [layout, visible]);
   const crosshair = CROSSHAIR_TOOLS.has(tool);
 
   // 工具状态跟着画布走（用户可能用快捷键切了工具）。
@@ -176,11 +183,13 @@ export function TabletShell({ onOpenSettings }) {
         if (keys.includes(2)) applyTool("eraser");
         return;
       }
-      // 板载键：只点亮按键带上对应的位置。
-      // 真机这 8 个键固件已经翻译成 b/e/[/]/Ctrl+Z…，动作由原生快捷键完成，
-      // 这里再联动浮岛会双重执行（例如撤销被撤两次）。
+      // 板载键：点亮位置并执行配置中的动作。键盘接口已被 seize，
+      // 原生快捷键不会到达系统，动作完全由应用侧负责。
       for (const index of keys) {
         setPadFlash({ index, seq: Date.now() + index });
+        const id = layoutRef.current.surfaces.onboardKeys.ids[index];
+        const slot = resolveSlot(id);
+        if (slot) activateRef.current?.(slot);
       }
     };
     window.addEventListener("tablet:hid-status", onStatus);
@@ -189,13 +198,25 @@ export function TabletShell({ onOpenSettings }) {
       window.removeEventListener("tablet:hid-status", onStatus);
       window.removeEventListener("tablet:keys", onKeys);
     };
-  }, [visible]);
+  }, []);
 
   // 菜单栏「设置…」
   useEffect(() => {
     const handler = () => setSettingsOpen(true);
     window.addEventListener("tablet:open-settings", handler);
     return () => window.removeEventListener("tablet:open-settings", handler);
+  }, []);
+
+  // 布局配置改动即时生效；打开的设置面板本身也广播，这里同步最新值。
+  useEffect(() => {
+    const handler = (event) => {
+      const next = event.detail || loadLayout();
+      layoutRef.current = next;
+      setLayout(next);
+      setRadial(null);
+    };
+    window.addEventListener("tablet:layout", handler);
+    return () => window.removeEventListener("tablet:layout", handler);
   }, []);
 
   // 画布列表由原生侧维护；这里先读本地存储兜底
@@ -383,9 +404,25 @@ export function TabletShell({ onOpenSettings }) {
         setOpenPanel(null);
         return;
       }
+      if (slot.action) {
+        const api = bridge();
+        if (!api) return;
+        if (slot.action === "undo") api.undo?.();
+        else if (slot.action === "redo") api.redo?.();
+        else if (slot.action === "zoomFit") api.zoomToFit?.();
+        else if (slot.action === "zoom100") api.setZoom?.(1);
+        else if (slot.action === "delete") api.deleteSelection?.();
+        else if (slot.action === "duplicate") api.duplicateSelection?.();
+        else if (slot.action === "selectAll") api.selectAll?.();
+        setOpenPanel(null);
+        return;
+      }
     },
     [applyTool, setRadialState, showToast]
   );
+  useEffect(() => {
+    activateRef.current = activate;
+  }, [activate]);
 
   const openRadial = useCallback(
     (source = "pen") => {
@@ -403,7 +440,7 @@ export function TabletShell({ onOpenSettings }) {
         showToast("元素已锁定");
         return;
       }
-      const built = buildLevel1(context);
+      const built = buildLevel1(context, layoutRef.current);
       if (!built) {
         showToast("没有可调样式");
         return;
@@ -425,7 +462,7 @@ export function TabletShell({ onOpenSettings }) {
       if (!api) return;
       if (api.isStrokeActive?.()) return;
       const context = api.getContext?.() || null;
-      const built = buildToolWheel(api.getTool?.(), context, toolLockedRef.current);
+      const built = buildToolWheel(api.getTool?.(), context, toolLockedRef.current, layoutRef.current, openPanel);
       const point = source === "mouse" ? mouseRef.current : penRef.current;
       setOpenPanel(null);
       setBubble(null);
@@ -433,7 +470,7 @@ export function TabletShell({ onOpenSettings }) {
       setTeleOpen(false);
       setRadialState({ ...built, x: point.x, y: point.y, source, context, outerOpen: false });
     },
-    [setRadialState]
+    [setRadialState, openPanel]
   );
 
   const closeRadial = useCallback(() => {
@@ -444,7 +481,7 @@ export function TabletShell({ onOpenSettings }) {
     (category) => {
       const current = radialRef.current;
       if (!current) return;
-      const built = buildLevel2(category, current.context);
+      const built = buildLevel2(category, current.context, layoutRef.current);
       if (!built) return;
       setRadialState({ ...current, ...built, category, outerOpen: false });
     },
@@ -794,7 +831,8 @@ export function TabletShell({ onOpenSettings }) {
         <PadBand
           flash={padFlash}
           onKey={(index) => {
-            const slot = visible[index];
+            const id = layout.surfaces.onboardKeys.ids[index];
+            const slot = resolveSlot(id);
             if (slot) activate(slot);
           }}
         />
@@ -863,7 +901,7 @@ export function TabletShell({ onOpenSettings }) {
       </div>
 
       {/* 左侧样式岛：有选中图元才显示，与侧键样式环共用定义 */}
-      {styleContext ? <LeftStyleIsland context={styleContext} /> : null}
+      {styleContext ? <LeftStyleIsland context={styleContext} layout={layout} /> : null}
 
       {panelNode}
 

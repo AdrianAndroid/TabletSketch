@@ -17,8 +17,8 @@ function showToast(text) {
   window.dispatchEvent(new CustomEvent("ts:toast", { detail: text }));
 }
 
-export function LeftStyleIsland({ context }) {
-  const buttons = useMemo(() => buildCategoryButtons(context), [context]);
+export function LeftStyleIsland({ context, layout = null }) {
+  const buttons = useMemo(() => buildCategoryButtons(context, layout), [context, layout]);
   const [hoverKey, setHoverKey] = useState(null);
   const [expandedKey, setExpandedKey] = useState(null);
   const [hoverValue, setHoverValue] = useState(null);
@@ -147,7 +147,7 @@ export function LeftStyleIsland({ context }) {
     }
   };
 
-  const items = expandedKey ? buildValueItems(expandedKey, context) : [];
+  const items = expandedKey ? buildValueItems(expandedKey, context, layout) : [];
 
   return (
     <div className="ts-left-style" data-ts-ui="" data-ts-left-style="">

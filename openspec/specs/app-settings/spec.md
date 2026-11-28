@@ -30,69 +30,44 @@ TabletSketch SHALL 提供设置能力，让用户无需手改配置文件即可�
 
 设置 SHALL 覆盖以下项目；每项改动 MUST 即时生效，不要求重启。
 
-#### Scenario: 浮岛
+#### Scenario: 五处布局
 
-- **WHEN** 用户修改浮岛
-- **THEN** MUST 可改：浮岛格数（0–18）、每格内容（工具 / 组 / 动作 / 展开型格子 / 空）、顺序、图标、标签
-- **AND** MUST 可改：单排或双排的排布方式
-- **AND** MUST 可改：`⋯` 二级面板的内容与顺序
-- **AND** 改动 MUST 同步更新板载键 1–8 的映射（两者是同一份数据）
+- **WHEN** 用户打开设置中的「布局」分组
+- **THEN** MUST 提供左浮岛、右浮岛、笔键 1、笔键 2、板载键五个独立页面
+- **AND** 每页 MUST 可改：显示哪些按钮、按钮顺序、每处容量与排布参数
+- **AND** 右浮岛与板载键的顺序 MUST 各自独立保存，互不影响
+- **AND** 同一按钮 id 的动作语义 MUST 全局统一，当前态显示 MUST 同步
+- **AND** 改动 MUST 广播布局事件，五处界面 MUST 即时重建，无需重启
 
-#### Scenario: 交互节奏
+#### Scenario: 样式完全开放
 
-- **WHEN** 用户修改交互参数
-- **THEN** MUST 可改：单击与长按的阈值、「更多」的展开方向、浮岛与画布重叠时的淡出透明度
-- **AND** MUST 可改：浮岛默认位置、吸附距离
+- **WHEN** 用户在笔键 1 或左浮岛页编辑样式
+- **THEN** MUST 可改：显示哪些样式类别、类别顺序、每个类别的取值项
+- **AND** 取值项 MUST 支持自定义颜色、自定义标签、增删与排序
+- **AND** 自定义取值写入 MUST 通过既有 `setStyle` 桥接路径，作用语义与预设取值一致
 
-#### Scenario: 笔尖气泡
+#### Scenario: 排序方式
 
-- **WHEN** 用户修改气泡
-- **THEN** MUST 可改：气泡内三组项目（颜色 / 线宽 / 橡皮）各自显示哪些选项
-- **AND** MUST 可改：气泡尺寸档位与偏移距离
-
-#### Scenario: 样式环
-
-- **WHEN** 用户打开设置中的「样式环」页
-- **THEN** MUST 只展示只读说明（固定 6 色、透明度 8 档、字号 4 档）
-- **AND** MUST NOT 提供槽位数量、动作绑定、悬浮预览等会改变样式环结构或取值的可编辑控件
-- **AND** v1 调色板固定，不做设置面板、不做持久化
-
-#### Scenario: 压感与画布
-
-- **WHEN** 用户修改压感或画布
-- **THEN** MUST 可改：压感曲线（至少 5 个可拖动控制点，且提供预设）
-- **AND** MUST 可改：最小线宽、背景（纯白 / 点阵 / 网格 / 深色）、网格间距
-
-#### Scenario: 配置档
-
-- **WHEN** 用户需要多套配置
-- **THEN** MUST 支持把「浮岛 + ⋯ + 气泡 + 压感 + 背景」存成一个具名配置档
-- **AND** MUST 支持切换、复制、重命名、删除
-- **AND** MUST 支持导入导出单个配置文件
+- **WHEN** 用户调整任意页面的按钮顺序
+- **THEN** MUST 同时提供上移/下移按钮与拖拽排序两种方式
+- **AND** 两种方式 MUST 写入同一份顺序数据，结果一致
 
 ### Requirement: 持久化
 
 设置 SHALL 保存到本机，不跟随账号同步。
 
-#### Scenario: 保存
+#### Scenario: 布局持久化
 
-- **WHEN** 用户改动任意设置项
-- **THEN** MUST 原子写入 `~/Library/Application Support/TabletSketch/settings.json`
-- **AND** 配置档 MUST 写入同目录 `profiles/`
-- **AND** 重启后 MUST 恢复
+- **WHEN** 用户改动任意布局或配置档
+- **THEN** 布局 MUST 写入 `tablet.layout.v2`，配置档 MUST 写入 `tablet.profiles.v1`
+- **AND** 重启后 MUST 恢复，且旧 `tablet.settings.v1` 的格数/双排/更多方向 MUST 迁移到新布局后不再读取
 
-#### Scenario: 损坏
+#### Scenario: 配置档
 
-- **WHEN** 设置文件损坏或含未知字段
-- **THEN** 应用 MUST 回落到默认配置
-- **AND** MUST 备份损坏文件
-- **AND** MUST NOT 崩溃、MUST NOT 丢失草图数据
-
-#### Scenario: 非法值
-
-- **WHEN** 某项取值越界（如格高小于 40pt）
-- **THEN** 应用 MUST 夹到合法区间并在界面上提示
-- **AND** MUST NOT 静默写入非法值
+- **WHEN** 用户需要多套配置
+- **THEN** MUST 支持把五处布局与样式取值存成具名配置档
+- **AND** MUST 支持切换、复制、重命名、删除、导出 JSON、导入 JSON
+- **AND** 导入非法配置 MUST 校验后回落，不丢当前草图
 
 ### Requirement: 不得定制的部分
 
@@ -197,3 +172,21 @@ TabletSketch SHALL 提供设置能力，让用户无需手改配置文件即可�
 - **WHEN** 用户输入数字或拖动滑杆
 - **THEN** 控件 MUST 自身限制在合法区间，不给用户输入非法值的机会
 - **AND** 恢复默认 MUST 只恢复当前页的出厂值，不影响其他页
+
+## 本次变更新增需求（refactor-configurable-layouts）
+
+### Requirement: 布局编辑界面
+
+设置面板 SHALL 为五处布局提供统一的可视化编辑界面。
+
+#### Scenario: 页面结构
+
+- **WHEN** 打开任一布局页
+- **THEN** MUST 依次显示：形态预览、带上下移与移除的顺序列表、按类别分组的候选池、排布参数
+- **AND** 形态预览 MUST 按该面真实几何展示按钮（网格 / 竖排 / 内外环 / 8 位按键带）
+- **AND** 候选池 MUST 只列该面允许类别的项
+
+#### Scenario: 恢复默认
+
+- **WHEN** 用户点「恢复本页默认」
+- **THEN** 当前页面 MUST 回落出厂值，其他页面 MUST NOT 受影响

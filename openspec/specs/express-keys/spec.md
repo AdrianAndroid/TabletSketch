@@ -25,60 +25,32 @@ TabletSketch SHALL 支持 Deco 640 的 8 个板载虚拟快捷键和 2 个笔侧
 
 ### Requirement: 默认映射
 
-应用 SHALL 提供一套可直接使用的默认映射。
-
 #### Scenario: 板载键默认表
 
 - **WHEN** 首次运行
-- **THEN** 板载键 1–8 MUST 绑定浮岛的**前 8 格**（双排时按左列自上而下、再右列），默认映射为：
-  - 1 菜单
-  - 2 画布
-  - 3 素材
-  - 4 笔（自由手写）
-  - 5 擦（橡皮）
-  - 6 手（平移）
-  - 7 选（选择）
-  - 8 矩（矩形）
+- **THEN** 板载键 1–8 MUST 默认映射为：笔、擦、手、选、矩、椭、箭、撤销
+- **AND** 实体键与屏幕按键带热区 MUST 走同一个 `activate(slot)` 路径
 
-#### Scenario: 与浮岛同源
+#### Scenario: 应用接管
 
-- **WHEN** 用户在设置中增删格子、改动内容或拖动换位
-- **THEN** 板载键 1–8 MUST 绑定新的前 8 格
-- **AND** MUST NOT 存在两套独立的映射表
-- **AND** 第 9 格及之后的格子 MUST 只可用笔点，不占用板载键
-- **AND** 笔侧键 2 的工具环 MUST 与浮岛共用同一份槽位定义
-
-#### Scenario: 笔侧键默认表
-
-- **WHEN** 首次运行
-- **THEN** 笔侧键 1 MUST 在笔光标位置弹出两级样式环
-- **AND** 笔侧键 2 MUST 在笔光标位置弹出工具环，MUST NOT 再呼出笔尖样式气泡
-- **AND** 工具环 MUST 复用浮岛的工具槽位，内圈为笔、擦、选、手、矩、椭、箭、字与「更多」，外圈为菱、线、图、素材、锁
-- **AND** 橡皮 MUST 由浮岛「擦」格或板载键 5 承担，MUST NOT 再占用侧键
-- **AND** Excalidraw 原生右键菜单 MUST NOT 直接挂在侧键上；需要时由浮岛「更多 → 图层与链接…」合成一次 `contextmenu`
-
-#### Scenario: 恢复默认
-
-- **WHEN** 用户选择恢复默认
-- **THEN** 所有映射 MUST 回到默认表
-- **AND** 必须二次确认
+- **WHEN** 采集器成功 seize 该板键盘接口
+- **THEN** 8 个键的固件原生快捷键 MUST 失效，动作 MUST 由应用按 `layout.v2.onboardKeys.ids` 执行
+- **AND**  seize MUST 只按本板 VID/PID 匹配，MUST NOT 全局监听或拦截系统键盘
+- **AND** 应用未启动或权限被拒时原生快捷键恢复，属已知边界
 
 ### Requirement: 映射持久化
 
-应用 SHALL 将按键映射保存到本地，不跟随账号同步。
+#### Scenario: 独立存储
 
-#### Scenario: 保存
-
-- **WHEN** 用户修改映射，或增删/调整浮岛格子
-- **THEN** MUST 原子写入 `~/Library/Application Support/TabletSketch/settings.json` 的槽定义
+- **WHEN** 用户修改板载键映射
+- **THEN** 顺序 MUST 存到 `layout.v2.onboardKeys`，与右浮岛前 8 格 MUST NOT 共用数据
 - **AND** 重启后 MUST 恢复
 
-#### Scenario: 配置损坏
+#### Scenario: 映射界面
 
-- **WHEN** 设置文件损坏或含未知动作
-- **THEN** 应用 MUST 使用默认映射
-- **AND** MUST 备份损坏文件
-- **AND** MUST NOT 崩溃
+- **WHEN** 用户打开设置「布局 → 板载键」
+- **THEN** MUST 可把任意允许的按钮 id 放到 8 个位置中的任意一位，也可留空
+- **AND** MUST 显示形态预览、顺序列表与候选池
 
 ### Requirement: 去抖与重复触发
 

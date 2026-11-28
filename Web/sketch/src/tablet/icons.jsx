@@ -123,6 +123,13 @@ export const Icons = {
 
   redo: () => <Svg><path d="M13 7l3.5 3.5L13 14" /><path d="M16.5 10.5h-8a4.5 4.5 0 000 9H11" /></Svg>,
 
+  zoom100: () => (
+    <Svg>
+      <circle cx="10" cy="10" r="6.5" />
+      <path d="M7 8.5h6M7 11.5h6M8 7l1.5 6M12 7l-1.5 6" />
+    </Svg>
+  ),
+
   save: () => (
     <Svg>
       <path d="M3.5 5.5A2 2 0 015.5 3.5h9L19 8v10.5a1 1 0 01-1 1h-13a1 1 0 01-1-1z" />
