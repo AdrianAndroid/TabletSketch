@@ -304,13 +304,16 @@ TabletSketch SHALL 在手写板模式下把窗口做成「一块板子」，而�
 - **THEN** 内圈 MUST 为笔、擦、选、手、矩、椭、箭、字与「更多」共 9 槽
 - **AND** 展开「更多」后外圈 MUST 为菱、线、图、素材、锁共 5 槽
 - **AND** 当前工具 MUST 在内圈对应槽位显示当前态圆点
+- **AND** 锁槽的当前态 MUST 跟随工具锁 `activeTool.locked`，MUST NOT 使用「选中元素是否全部锁定」
 - **AND** 「菜单」「画布」MUST NOT 出现在工具环中
 
 #### Scenario: 点选执行
 
 - **WHEN** 笔尖或鼠标点中工具环的一个槽位
 - **THEN** 应用 MUST 调用与右侧浮岛相同的 `activate(slot)` 路径
-- **AND** 工具槽 MUST 切换工具并保持到下一次落笔，素材槽 MUST 打开素材面板，锁槽 MUST 锁定当前选中元素
+- **AND** 工具槽 MUST 切换工具并保持到下一次落笔，素材槽 MUST 打开素材面板
+- **AND** 锁槽 MUST 切换 Excalidraw 工具锁（与原生工具栏锁按钮同语义）：开启后绘制完成不跳回选择工具，关闭后回到选择工具
+- **AND** 锁槽 MUST NOT 修改选中元素的 `locked` 字段
 - **AND** 执行后工具环 MUST 立即关闭
 
 #### Scenario: 与键 1 共存

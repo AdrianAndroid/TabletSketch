@@ -34,8 +34,13 @@ check("所有工具槽位走同一执行类型", built.slots.filter((slot) => sl
 
 const penCurrent = buildToolWheel("freedraw", null).slots.find((slot) => slot.key === "pen");
 check("当前工具高亮", penCurrent.current, true);
-const locked = buildToolWheel("selection", { allLocked: true }).outerSlots.find((slot) => slot.key === "lock");
-check("锁槽位跟随选中锁定态", locked.current, true);
+const stuckByElements = buildToolWheel("selection", { allLocked: true }, false).outerSlots.find(
+  (slot) => slot.key === "lock"
+);
+check("锁槽位不再跟随选中元素锁定态", stuckByElements.current, false);
+const locked = buildToolWheel("selection", null, true).outerSlots.find((slot) => slot.key === "lock");
+check("锁槽位跟随工具锁状态", locked.current, true);
 check("锁槽位保留浮岛 action", locked.action, "lock");
+check("锁槽位当前提示标注", locked.tip, "锁 · 当前");
 
 console.log(`工具环回归：${passed}/${passed} 通过`);

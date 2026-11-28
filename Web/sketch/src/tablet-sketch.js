@@ -440,6 +440,20 @@ function installTabletSketch(excalidrawApi) {
     getTool() {
       return api.getAppState().activeTool?.type || "selection";
     },
+    // 工具锁：与 Excalidraw 原生工具栏锁按钮同语义（绘制后保持当前工具）。
+    // imperative API 未暴露 toggleLock，改用 setActiveTool 复现其状态机：
+    // 开启时保持当前工具并锁住；关闭时回退到选择工具。
+    toggleToolLock() {
+      const activeTool = api.getAppState().activeTool || { type: "selection" };
+      const next = activeTool.locked
+        ? { type: "selection", locked: false }
+        : { type: activeTool.type, locked: true };
+      api.setActiveTool(next);
+      return !!api.getAppState().activeTool?.locked;
+    },
+    getToolLocked() {
+      return !!api.getAppState().activeTool?.locked;
+    },
     hasSelection() {
       const selected = api.getAppState().selectedElementIds || {};
       return Object.keys(selected).some((id) => selected[id]);

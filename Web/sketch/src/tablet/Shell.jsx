@@ -95,6 +95,9 @@ export function TabletShell({ onOpenSettings }) {
   const [openPanel, setOpenPanel] = useState(null);
   const [side, setSide] = useState("right");
   const [tool, setTool] = useState("selection");
+  // 工具锁状态：跟随 Excalidraw activeTool.locked，低频刷新。
+  const [toolLocked, setToolLocked] = useState(false);
+  const toolLockedRef = useRef(false);
   // 左侧样式岛的上下文：低频刷新（随工具轮询），有选中才显示。
   const [styleContext, setStyleContext] = useState(null);
   const styleSigRef = useRef("");
@@ -137,6 +140,13 @@ export function TabletShell({ onOpenSettings }) {
       if (!api) return;
       const next = api.getTool();
       if (next) setTool(next);
+      if (api.getToolLocked) {
+        const locked = !!api.getToolLocked();
+        if (locked !== toolLockedRef.current) {
+          toolLockedRef.current = locked;
+          setToolLocked(locked);
+        }
+      }
       if (!api.getContext) return;
       const context = api.getContext();
       const sig = JSON.stringify([
@@ -364,11 +374,17 @@ export function TabletShell({ onOpenSettings }) {
       }
       if (slot.action === "lock") {
         const api = bridge();
-        const context = api?.getContext?.();
-        if (context?.selectedTypes.length) api.setStyle({ locked: true });
+        const locked = api?.toggleToolLock?.();
+        if (typeof locked === "boolean") {
+          toolLockedRef.current = locked;
+          setToolLocked(locked);
+          showToast(locked ? "已锁定工具" : "已解锁工具", 1000);
+        }
+        setOpenPanel(null);
+        return;
       }
     },
-    [applyTool, setRadialState]
+    [applyTool, setRadialState, showToast]
   );
 
   const openRadial = useCallback(
@@ -409,7 +425,7 @@ export function TabletShell({ onOpenSettings }) {
       if (!api) return;
       if (api.isStrokeActive?.()) return;
       const context = api.getContext?.() || null;
-      const built = buildToolWheel(api.getTool?.(), context);
+      const built = buildToolWheel(api.getTool?.(), context, toolLockedRef.current);
       const point = source === "mouse" ? mouseRef.current : penRef.current;
       setOpenPanel(null);
       setBubble(null);
@@ -804,7 +820,11 @@ export function TabletShell({ onOpenSettings }) {
         <div className="ts-island-grid">
           {visible.map((slot, index) => {
             const Icon = Icons[slot.icon] || Icons.more;
-            const selected = slot.tool && slot.tool === tool;
+            const selected = slot.tool
+              ? slot.tool === tool
+              : slot.action === "lock"
+                ? toolLocked
+                : false;
             return (
               <button
                 key={slot.id}
@@ -812,7 +832,15 @@ export function TabletShell({ onOpenSettings }) {
                 className={`ts-cell${selected ? " is-on" : ""}${
                   slot.panel && openPanel === slot.panel ? " is-open" : ""
                 }`}
-                title={`${slot.label}${index < 8 ? `（板载键 ${index + 1}）` : ""}`}
+                title={`${slot.label}${
+                  slot.action === "lock"
+                    ? toolLocked
+                      ? "（已锁定工具）"
+                      : "（绘制后保持工具）"
+                    : index < 8
+                      ? `（板载键 ${index + 1}）`
+                      : ""
+                }`}
                 onClick={() => activate(slot)}
               >
                 <Icon />

@@ -101,7 +101,7 @@ const SCENARIO = String.raw`(async () => {
     const r0 = $(".ts-island").getBoundingClientRect();
     pointer("pointerdown", g.x, g.y, $(".ts-island-grip"));
     pointer("pointermove", g.x - 150, g.y, window);
-    await sleep(80);
+    await sleep(160);
     const r1 = $(".ts-island").getBoundingClientRect();
     log("拖动实时跟手", Math.abs(r1.left - (r0.left - 150)) < 8,
         Math.round(r1.left - r0.left) + "," + Math.round(r1.top - r0.top));
@@ -152,7 +152,7 @@ const SCENARIO = String.raw`(async () => {
     const beforeSmall = $(".ts-island").getBoundingClientRect().left;
     penClient("began", g.x, g.y);
     penClient("changed", smallX, g.y);
-    await sleep(60);
+    await sleep(160);
     const duringSmall = $(".ts-island").getBoundingClientRect().left;
     log("笔在把手内小幅移动即跟手", Math.abs(duringSmall - beforeSmall) > 4,
         Math.round(duringSmall - beforeSmall) + "px, hit=" + (topAt(smallX, g.y)?.className || ""));
@@ -413,6 +413,26 @@ const SCENARIO = String.raw`(async () => {
     }
   }
 
+  // ---------- 锁槽：工具锁而非元素锁 ----------
+  const getLockCell = () => cell(14);
+  const lockCell = getLockCell();
+  log("浮岛第15格为锁槽", !!lockCell && lockCell.title.includes("锁"), lockCell?.title || "missing");
+  if (lockCell) {
+    const beforeAllLocked = window.tabletSketch?.getContext?.().allLocked;
+    click(lockCell);
+    await sleep(520);
+    log("点锁槽开启工具锁", window.tabletSketch?.getToolLocked?.() === true,
+        String(window.tabletSketch?.getToolLocked?.()));
+    log("锁槽开启显示当前态", !!getLockCell()?.classList.contains("is-on"), getLockCell()?.className || "missing");
+    log("点锁槽不改元素锁定态", window.tabletSketch?.getContext?.().allLocked === beforeAllLocked,
+        String(beforeAllLocked) + " -> " + String(window.tabletSketch?.getContext?.().allLocked));
+    click(getLockCell());
+    await sleep(520);
+    log("再点锁槽关闭工具锁", window.tabletSketch?.getToolLocked?.() === false,
+        String(window.tabletSketch?.getToolLocked?.()));
+    log("锁槽关闭取消当前态", !getLockCell()?.classList.contains("is-on"), getLockCell()?.className || "missing");
+  }
+
   // ---------- 左侧样式浮动岛 ----------
   window.tabletSketch?.clearSelection?.();
   await sleep(500);
@@ -454,7 +474,7 @@ const SCENARIO = String.raw`(async () => {
 
     // 悬停 100ms：高亮并自动展开取值条（笔位置经 tablet:penpos，与真实笔同一事件源）
     window.dispatchEvent(new CustomEvent("tablet:penpos", { detail: { x: sr.x, y: sr.y, down: false } }));
-    await sleep(200);
+    await sleep(340);
     // 重新取节点：悬停会触发展开与重渲染，旧引用可能不是当前按钮。
     const hoveredBtn = $$(".ts-left-style [data-ts-style-key]").find(
       (b) => b.getAttribute("data-ts-style-key") === "stroke"
@@ -485,11 +505,13 @@ const SCENARIO = String.raw`(async () => {
       await sleep(120);
       log("笔移开取值项清除高亮", !hoverTarget.classList.contains("is-hover"), hoverTarget.className);
 
-      // 点击第一个非当前取值，样式应改变且取值条收起
+      // 点击第一个非当前取值，样式应改变且取值条收起。
       const target = vals.find((v) => !v.classList.contains("is-current")) || vals[0];
       const strokeBefore = window.tabletSketch?.getContext?.().style?.strokeColor;
       click(target);
-      await sleep(180);
+      // 点击后立即把笔移出左岛，避免残留悬停定时器在收起后重新展开。
+      window.dispatchEvent(new CustomEvent("tablet:penpos", { detail: { x: 6, y: 6, down: false } }));
+      await sleep(320);
       const strokeAfter = window.tabletSketch?.getContext?.().style?.strokeColor;
       log("点击取值应用样式", strokeAfter !== strokeBefore, strokeBefore + " -> " + strokeAfter);
       log("点击取值后收起", !$(".ts-left-style-values"), $(".ts-left-style-values") ? "still expanded" : "collapsed");

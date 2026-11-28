@@ -25,11 +25,11 @@ const MORE_SLOT = {
 
 const SLOT_BY_ID = new Map(DEFAULT_SLOTS.map((slot) => [slot.id, slot]));
 
-function toRadialSlot(slot, tool, context) {
+function toRadialSlot(slot, tool, toolLocked) {
   const isCurrent = slot.tool
     ? tool === slot.tool
     : slot.action === "lock"
-      ? !!context?.allLocked
+      ? !!toolLocked
       : false;
   const fullLabel = slot.tool ? TOOL_LABEL[slot.tool] || slot.label : slot.label;
   return {
@@ -42,15 +42,15 @@ function toRadialSlot(slot, tool, context) {
 }
 
 /** 构建工具环一级槽位与「更多」外圈槽位。 */
-export function buildToolWheel(tool = "selection", context = null) {
+export function buildToolWheel(tool = "selection", context = null, toolLocked = false) {
   const slots = TOOL_WHEEL_INNER_IDS.map((id) => SLOT_BY_ID.get(id))
     .filter(Boolean)
-    .map((slot) => toRadialSlot(slot, tool, context));
+    .map((slot) => toRadialSlot(slot, tool, toolLocked));
   slots.push(MORE_SLOT);
 
   const outerSlots = TOOL_WHEEL_OUTER_IDS.map((id) => SLOT_BY_ID.get(id))
     .filter(Boolean)
-    .map((slot) => toRadialSlot(slot, tool, context));
+    .map((slot) => toRadialSlot(slot, tool, toolLocked));
 
   return {
     mode: "tool",
