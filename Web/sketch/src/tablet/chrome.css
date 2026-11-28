@@ -2015,6 +2015,39 @@ body.tablet-mode {
   height: 100%;
 }
 
+/* 当前态（工具 / 锁生效中）：与浮岛 .is-on 同色，但不带外发光 */
+.ts-layer .ts-band-key.is-on {
+  background: var(--ts-accent);
+  color: #ffffff;
+  background-clip: padding-box;
+  box-shadow: inset 0 0 0 1px var(--ts-accent);
+}
+
+.ts-layer .ts-band-key.is-on .ts-band-key-num {
+  background: rgba(255, 255, 255, 0.24);
+  color: #ffffff;
+}
+
+.ts-layer .ts-band-key.is-on .ts-band-key-icon {
+  color: #ffffff;
+}
+
+/* 当前态（面板展开中）：与浮岛 .is-open 同色，浅底强调字 */
+.ts-layer .ts-band-key.is-open {
+  background: var(--ts-accent-soft);
+  color: var(--ts-accent);
+  box-shadow: inset 0 0 0 1px rgba(10, 132, 255, 0.28);
+}
+
+.ts-layer .ts-band-key.is-open .ts-band-key-num {
+  background: rgba(10, 132, 255, 0.16);
+  color: var(--ts-accent);
+}
+
+.ts-layer .ts-band-key.is-open .ts-band-key-icon {
+  color: var(--ts-accent);
+}
+
 .ts-layer .ts-band-key.is-lit,
 .ts-layer .ts-band-key.is-lit .ts-band-key-num {
   background: var(--ts-accent);

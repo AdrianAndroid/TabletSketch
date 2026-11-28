@@ -797,6 +797,17 @@ const SCENARIO = String.raw`(async () => {
   await sleep(120);
   log("列数测试后设置窗已关闭", !$(".ts-settings"), $(".ts-settings") ? "still open" : "closed");
 
+  // 板载键常亮态跟随当前工具（与右浮岛同语义）
+  const bandOn = () => $$(".ts-band-key").map((el) => el.classList.contains("is-on"));
+  window.tabletSketch?.setTool?.("freedraw");
+  await sleep(520);
+  let onFlags = bandOn();
+  log("板载键画笔格常亮", onFlags[0] === true, JSON.stringify(onFlags));
+  window.tabletSketch?.setTool?.("eraser");
+  await sleep(520);
+  onFlags = bandOn();
+  log("切到橡皮后仅橡皮格常亮", onFlags[1] === true && onFlags[0] === false, JSON.stringify(onFlags));
+
   return results;
 })()`;
 

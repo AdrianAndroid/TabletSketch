@@ -172,6 +172,23 @@ export function TabletShell({ onOpenSettings }) {
   }, [layout, visible]);
   const crosshair = CROSSHAIR_TOOLS.has(tool);
 
+  // 板载键卡片的当前态：与浮岛共用 buildSurfaceSlots 的 current 判定，
+  // 只是把视觉拆成「实色（工具/锁生效中）」与「浅色（面板展开中）」两种。
+  // 注意空槽会被 filter 掉，必须用 slot.index 回填，不能按下标取。
+  const padStates = useMemo(() => {
+    const slots = buildSurfaceSlots("onboardKeys", layout, {
+      tool,
+      toolLocked,
+      panel: openPanel
+    });
+    const byIndex = new Map(slots.map((slot) => [slot.index, slot]));
+    return Array.from({ length: 8 }, (_, index) => {
+      const slot = byIndex.get(index);
+      if (!slot || !slot.current) return null;
+      return slot.panel ? "open" : "on";
+    });
+  }, [layout, tool, toolLocked, openPanel]);
+
   // 工具状态跟着画布走（用户可能用快捷键切了工具）。
   // 顺带低频刷新左侧样式岛的上下文：签名不变就不 setState。
   useEffect(() => {
@@ -898,6 +915,7 @@ export function TabletShell({ onOpenSettings }) {
         <PadBand
           flash={padFlash}
           bindings={layout.surfaces.onboardKeys.ids}
+          states={padStates}
           onKey={(index) => {
             const id = layout.surfaces.onboardKeys.ids[index];
             const slot = resolveSlot(id);

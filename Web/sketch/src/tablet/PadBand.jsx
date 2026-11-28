@@ -17,8 +17,11 @@ function KeyIcon({ id }) {
 /**
  * 板载键条：8 个键等距平分窗口顶部，常显淡色卡片（圆形编号 + 绑定功能图标），
  * 按下那一刻整卡高亮。用笔直接点这些位置也能触发同一动作，用于没有接板子时的自测。
+ *
+ * `states[i]` 是这一格在画布里的当前态（"on" = 工具/锁生效中，"open" = 面板展开中），
+ * 与右侧浮岛同功能槽位共用同一份判定，保证两处状态一致。
  */
-export function PadBand({ flash, onKey, bindings }) {
+export function PadBand({ flash, onKey, bindings, states }) {
   const [lit, setLit] = useState(() => new Set());
   const timers = useRef(new Map());
 
@@ -49,13 +52,16 @@ export function PadBand({ flash, onKey, bindings }) {
       {KEY_CENTER.map((center, index) => {
         const id = bindings?.[index] || DEFAULT_BINDINGS[index];
         const label = ACTION_LIBRARY[id]?.label || "未设置";
+        const state = states?.[index] || null;
         return (
           <button
             key={index}
             type="button"
-            className={`ts-band-key${lit.has(index) ? " is-lit" : ""}`}
+            className={`ts-band-key${state === "on" ? " is-on" : ""}${
+              state === "open" ? " is-open" : ""
+            }${lit.has(index) ? " is-lit" : ""}`}
             style={{ left: `${center * 100}%` }}
-            title={`板载键 ${index + 1} · ${label}`}
+            title={`板载键 ${index + 1} · ${label}${state ? " · 当前" : ""}`}
             onPointerDown={(event) => {
               // 用 pointerdown 而不是 click：不等成对事件，按下即响应
               event.preventDefault();
