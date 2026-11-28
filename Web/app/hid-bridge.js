@@ -29,6 +29,7 @@ class HidBridge {
     this.maxRetries = 3;
     this.stopped = false;
     this.buffer = "";
+    this.grabOk = null;
   }
 
   start() {
@@ -104,7 +105,12 @@ class HidBridge {
 
     if (payload.t === "ready") {
       this.retries = 0;
-      this.onStatus?.({ state: "ready", message: `已连接 ${payload.product}` });
+      this.grabOk = payload.seized !== false;
+      // 只读模式下笔能用但板载键收不到，必须让状态说清楚，不能显示成“一切正常”
+      const message = this.grabOk
+        ? `已连接 ${payload.product}`
+        : `已连接 ${payload.product}（只读，正在重试独占）`;
+      this.onStatus?.({ state: "ready", message });
       return;
     }
     if (payload.t === "error") {
@@ -112,10 +118,19 @@ class HidBridge {
       return;
     }
     if (payload.t === "grab") {
-      this.onStatus?.({
-        state: payload.ok ? "grabbed" : "grab-failed",
-        message: payload.ok ? "已独占手写板" : "独占失败，退回只读"
-      });
+      if (payload.ok) {
+        this.grabOk = true;
+        this.onStatus?.({
+          state: "grabbed",
+          message: payload.recovered ? "已恢复独占" : "已独占手写板"
+        });
+      } else {
+        this.grabOk = false;
+        this.onStatus?.({
+          state: "grab-retrying",
+          message: `正在重试独占（第 ${payload.retry || 1} 次）`
+        });
+      }
       return;
     }
     if (payload.t === "bye") {
