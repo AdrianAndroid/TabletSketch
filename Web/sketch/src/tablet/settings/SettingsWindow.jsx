@@ -412,16 +412,7 @@ function LayoutPage({ surfaceId, layout, state, onPatch, onRestore, onRestoreVal
         ))}
       </Section>
 
-      <Section title="排布" icon="grip">
-        {rules.geometry === "grid" ? (
-          <Field label="列数" hint="1 或 2 列。">
-            <Segments
-              options={[{ key: 1, label: "单列" }, { key: 2, label: "双列" }]}
-              value={surface.columns || 1}
-              onChange={(v) => onPatch({ columns: v })}
-            />
-          </Field>
-        ) : null}
+      <Section title="排布" icon="grip" note={rules.geometry === "grid" ? "列数由按钮数量自动决定：不超过 10 个单列，超过则双列。" : undefined}>
         {rules.geometry === "ring" ? (
           <>
             <Field label="内圈槽位" hint="含「更多」，最大 9。">

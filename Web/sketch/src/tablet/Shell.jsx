@@ -157,6 +157,8 @@ export function TabletShell({ onOpenSettings }) {
     const limit = layout.surfaces.rightIsland.limit || ids.length;
     return buildSurfaceSlots("rightIsland", layout, { tool, toolLocked, panel: openPanel }).slice(0, limit);
   }, [layout, tool, toolLocked, openPanel]);
+  // 列数全自动：含末尾「更多」在内，总数 > 10 才双列；双列按列填充（见 chrome.css）。
+  const islandColumns = visible.length + 1 > 10 ? 2 : 1;
   const overflow = useMemo(() => {
     const ids = layout.surfaces.rightIsland.ids;
     const limit = layout.surfaces.rightIsland.limit || ids.length;
@@ -903,7 +905,7 @@ export function TabletShell({ onOpenSettings }) {
           <Icons.grip />
         </div>
 
-        <div className="ts-island-grid">
+        <div className="ts-island-grid" data-columns={islandColumns}>
           {visible.map((slot, index) => {
             const Icon = Icons[slot.icon] || Icons.more;
             const selected = slot.tool

@@ -225,3 +225,21 @@ TabletSketch SHALL 提供设置能力，让用户无需手改配置文件即可�
 - **AND** 每个键 MUST 可独立选择功能，允许两个键绑定同一功能
 - **AND** 改动 MUST 写入 `layout.v2` 的 `onboardKeys.ids` 并即时广播
 - **AND** MUST 提供恢复板载键默认，且 MUST NOT 再存在「布局 → 板载键」重复入口
+
+## 本次变更新增需求（auto-island-columns）
+
+### Requirement: 右浮岛不提供手动列数
+
+设置面板 SHALL NOT 提供右浮岛的列数手动选项，列数由渲染层按格数自动判定。
+
+#### Scenario: 排布区无列数项
+
+- **WHEN** 用户打开「布局 → 右浮动岛」
+- **THEN** 「排布」区 MUST NOT 出现单列/双列选项
+- **AND** SHOULD 提示列数由按钮数量自动决定
+
+#### Scenario: 旧配置兼容
+
+- **WHEN** 导入配置或旧数据含 `columns` 字段
+- **THEN** 校验 MUST 接受而不报错
+- **AND** 该字段 MUST NOT 影响实际渲染列数

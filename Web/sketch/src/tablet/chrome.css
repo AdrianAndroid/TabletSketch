@@ -184,8 +184,20 @@ body.tablet-mode {
 
 .ts-island-grid {
   display: grid;
-  grid-template-columns: repeat(2, calc(44px * var(--ts-ui-scale)));
   gap: calc(4px * var(--ts-ui-scale));
+}
+
+/* 列数由可见格数自动决定：先保证一列 10 格，超过才开第二列。 */
+.ts-island-grid[data-columns="1"] {
+  grid-template-columns: calc(44px * var(--ts-ui-scale));
+  grid-auto-flow: row;
+}
+
+.ts-island-grid[data-columns="2"] {
+  grid-template-columns: repeat(2, calc(44px * var(--ts-ui-scale)));
+  grid-template-rows: repeat(10, calc(44px * var(--ts-ui-scale)));
+  /* 按列填充：先自上而下填满左列 10 格，剩余（含「更多」）再进右列 */
+  grid-auto-flow: column;
 }
 
 .ts-cell {

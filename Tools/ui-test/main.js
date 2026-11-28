@@ -713,6 +713,66 @@ const SCENARIO = String.raw`(async () => {
   await sleep(120);
   log("键位测试后设置窗已关闭", !$(".ts-settings"), $(".ts-settings") ? "still open" : "closed");
 
+  // ---------- 浮岛列数自动：默认双列、按列填充、更多末尾 ----------
+  const grid = $(".ts-island-grid");
+  log("浮岛默认双列（16 格）", grid?.getAttribute("data-columns") === "2", grid?.getAttribute("data-columns"));
+  const gridStyle = grid ? getComputedStyle(grid) : null;
+  log("双列为按列填充", gridStyle?.gridAutoFlow === "column", gridStyle?.gridAutoFlow);
+  const rowTrack = (gridStyle?.gridTemplateRows || "").trim().split(/\s+/).filter(Boolean).length;
+  log("双列第一列固定 10 行", rowTrack === 10, String(rowTrack));
+  const gridCells = $$(".ts-island-grid .ts-cell");
+  const moreCell = $(".ts-cell--more");
+  log("更多按钮固定在最后一格", gridCells.length > 0 && gridCells[gridCells.length - 1] === moreCell,
+      gridCells.indexOf(moreCell) + 1 + "/" + gridCells.length);
+  if (gridCells.length >= 12) {
+    const c0 = gridCells[0].getBoundingClientRect();
+    const c1 = gridCells[1].getBoundingClientRect();
+    const c9 = gridCells[9].getBoundingClientRect();
+    const c10 = gridCells[10].getBoundingClientRect();
+    log("按列填充：前两格同列纵向排列", Math.abs(c0.left - c1.left) < 2 && c1.top > c0.top,
+        Math.round(c0.left) + "," + Math.round(c0.top) + " / " + Math.round(c1.left) + "," + Math.round(c1.top));
+    log("按列填充：第 11 格换到右列", c10.left - c9.left > 20,
+        Math.round(c9.left) + " -> " + Math.round(c10.left));
+  }
+
+  // 用布局广播把可见格数减到 10（9 内容格 + 更多），验证自动切单列，再恢复。
+  const layoutRaw = JSON.parse(localStorage.getItem("tablet.layout.v2") || "null");
+  if (layoutRaw?.surfaces?.rightIsland) {
+    const originalLimit = layoutRaw.surfaces.rightIsland.limit;
+    layoutRaw.surfaces.rightIsland.limit = 9;
+    localStorage.setItem("tablet.layout.v2", JSON.stringify(layoutRaw));
+    window.dispatchEvent(new CustomEvent("tablet:layout", { detail: layoutRaw }));
+    await sleep(180);
+    const singleGrid = $(".ts-island-grid");
+    const singleCells = $$(".ts-island-grid .ts-cell");
+    log("格数减到 10 自动切单列", singleGrid?.getAttribute("data-columns") === "1", singleGrid?.getAttribute("data-columns"));
+    log("单列共 10 格（9+更多）", singleCells.length === 10, String(singleCells.length));
+    log("单列更多仍在最后", singleCells[singleCells.length - 1] === $(".ts-cell--more"), "tail=" + (singleCells[singleCells.length - 1]?.className || ""));
+    log("单列为按行填充", getComputedStyle(singleGrid).gridAutoFlow === "row", getComputedStyle(singleGrid).gridAutoFlow);
+    // 恢复默认配置，避免污染后续缩放段。必须构造新对象引用，否则 setLayout 会跳过重渲染。
+    const restored = JSON.parse(JSON.stringify(layoutRaw));
+    restored.surfaces.rightIsland.limit = originalLimit;
+    localStorage.setItem("tablet.layout.v2", JSON.stringify(restored));
+    window.dispatchEvent(new CustomEvent("tablet:layout", { detail: restored }));
+    await sleep(180);
+    log("恢复后回到双列", $(".ts-island-grid")?.getAttribute("data-columns") === "2", $(".ts-island-grid")?.getAttribute("data-columns"));
+  }
+
+  // 设置面板不再提供手动列数选项。
+  window.dispatchEvent(new Event("tablet:open-settings"));
+  await sleep(200);
+  const rightNavForColumns = $$(".ts-nav-item").find((n) => n.textContent.includes("右浮动岛"));
+  if (rightNavForColumns) {
+    click(rightNavForColumns);
+    await sleep(180);
+    const allLabels = $$(".ts-field-label, label, .ts-field").map((n) => n.textContent).join(" ");
+    log("设置已移除手动列数选项", !allLabels.includes("列数") && !allLabels.includes("单列") && !allLabels.includes("双列"),
+        allLabels.slice(0, 120));
+  }
+  click($(".ts-settings-head .ts-panel-close"));
+  await sleep(120);
+  log("列数测试后设置窗已关闭", !$(".ts-settings"), $(".ts-settings") ? "still open" : "closed");
+
   return results;
 })()`;
 
